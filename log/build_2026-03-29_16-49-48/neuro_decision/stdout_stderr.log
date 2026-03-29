@@ -1,0 +1,48 @@
+running egg_info
+creating ../../build/neuro_decision/neuro_decision.egg-info
+writing ../../build/neuro_decision/neuro_decision.egg-info/PKG-INFO
+writing dependency_links to ../../build/neuro_decision/neuro_decision.egg-info/dependency_links.txt
+writing entry points to ../../build/neuro_decision/neuro_decision.egg-info/entry_points.txt
+writing requirements to ../../build/neuro_decision/neuro_decision.egg-info/requires.txt
+writing top-level names to ../../build/neuro_decision/neuro_decision.egg-info/top_level.txt
+writing manifest file '../../build/neuro_decision/neuro_decision.egg-info/SOURCES.txt'
+reading manifest file '../../build/neuro_decision/neuro_decision.egg-info/SOURCES.txt'
+writing manifest file '../../build/neuro_decision/neuro_decision.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build
+creating /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib
+creating /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib/neuro_decision
+copying neuro_decision/pure_pursuit_node.py -> /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib/neuro_decision
+copying neuro_decision/behavior_node.py -> /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib/neuro_decision
+copying neuro_decision/speed_control_node.py -> /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib/neuro_decision
+copying neuro_decision/__init__.py -> /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib/neuro_decision
+running install
+running install_lib
+creating /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision
+copying /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib/neuro_decision/pure_pursuit_node.py -> /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision
+copying /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib/neuro_decision/behavior_node.py -> /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision
+copying /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib/neuro_decision/speed_control_node.py -> /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision
+copying /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build/lib/neuro_decision/__init__.py -> /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision
+byte-compiling /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision/pure_pursuit_node.py to pure_pursuit_node.cpython-310.pyc
+byte-compiling /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision/behavior_node.py to behavior_node.cpython-310.pyc
+byte-compiling /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision/speed_control_node.py to speed_control_node.cpython-310.pyc
+byte-compiling /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision/__init__.py to __init__.cpython-310.pyc
+running install_data
+creating /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/ament_index
+creating /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/ament_index/resource_index
+creating /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/ament_index/resource_index/packages
+copying resource/neuro_decision -> /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/ament_index/resource_index/packages
+copying package.xml -> /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/neuro_decision
+creating /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/neuro_decision/launch
+copying launch/localization.launch.py -> /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/neuro_decision/launch
+copying launch/neuro_decision.launch.py -> /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/neuro_decision/launch
+creating /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/neuro_decision/config
+copying config/ekf.yaml -> /home/junghun/dream_ws/neuro_ws/install/neuro_decision/share/neuro_decision/config
+running install_egg_info
+Copying ../../build/neuro_decision/neuro_decision.egg-info to /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision-0.0.0-py3.10.egg-info
+running install_scripts
+Installing behavior_node script to /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/neuro_decision
+Installing pure_pursuit script to /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/neuro_decision
+Installing speed_control script to /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/neuro_decision
+writing list of installed files to '/home/junghun/dream_ws/neuro_ws/build/neuro_decision/install.log'

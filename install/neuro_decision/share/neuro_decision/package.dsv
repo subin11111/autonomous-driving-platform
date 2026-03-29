@@ -1,0 +1,6 @@
+source;share/neuro_decision/hook/pythonpath.ps1
+source;share/neuro_decision/hook/pythonpath.dsv
+source;share/neuro_decision/hook/pythonpath.sh
+source;share/neuro_decision/hook/ament_prefix_path.ps1
+source;share/neuro_decision/hook/ament_prefix_path.dsv
+source;share/neuro_decision/hook/ament_prefix_path.sh

@@ -1,0 +1,5 @@
+[console_scripts]
+behavior_node = neuro_decision.behavior_node:main
+pure_pursuit = neuro_decision.pure_pursuit_node:main
+speed_control = neuro_decision.speed_control_node:main
+

@@ -1,0 +1,23 @@
+[0.348s] Invoking command in '/home/junghun/dream_ws/neuro_ws/src/neuro_decision': PYTHONPATH=/home/junghun/dream_ws/neuro_ws/build/neuro_decision/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/neuro_decision build --build-base /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build install --record /home/junghun/dream_ws/neuro_ws/build/neuro_decision/install.log --single-version-externally-managed install_data
+[0.466s] running egg_info
+[0.466s] writing ../../build/neuro_decision/neuro_decision.egg-info/PKG-INFO
+[0.466s] writing dependency_links to ../../build/neuro_decision/neuro_decision.egg-info/dependency_links.txt
+[0.467s] writing entry points to ../../build/neuro_decision/neuro_decision.egg-info/entry_points.txt
+[0.467s] writing requirements to ../../build/neuro_decision/neuro_decision.egg-info/requires.txt
+[0.467s] writing top-level names to ../../build/neuro_decision/neuro_decision.egg-info/top_level.txt
+[0.467s] reading manifest file '../../build/neuro_decision/neuro_decision.egg-info/SOURCES.txt'
+[0.468s] writing manifest file '../../build/neuro_decision/neuro_decision.egg-info/SOURCES.txt'
+[0.468s] running build
+[0.468s] running build_py
+[0.468s] running install
+[0.468s] running install_lib
+[0.469s] running install_data
+[0.469s] running install_egg_info
+[0.471s] removing '/home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision-0.0.0-py3.10.egg-info' (and everything under it)
+[0.471s] Copying ../../build/neuro_decision/neuro_decision.egg-info to /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages/neuro_decision-0.0.0-py3.10.egg-info
+[0.471s] running install_scripts
+[0.483s] Installing behavior_node script to /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/neuro_decision
+[0.483s] Installing pure_pursuit script to /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/neuro_decision
+[0.483s] Installing speed_control script to /home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/neuro_decision
+[0.484s] writing list of installed files to '/home/junghun/dream_ws/neuro_ws/build/neuro_decision/install.log'
+[0.504s] Invoked command in '/home/junghun/dream_ws/neuro_ws/src/neuro_decision' returned '0': PYTHONPATH=/home/junghun/dream_ws/neuro_ws/build/neuro_decision/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/junghun/dream_ws/neuro_ws/install/neuro_decision/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/neuro_decision build --build-base /home/junghun/dream_ws/neuro_ws/build/neuro_decision/build install --record /home/junghun/dream_ws/neuro_ws/build/neuro_decision/install.log --single-version-externally-managed install_data
