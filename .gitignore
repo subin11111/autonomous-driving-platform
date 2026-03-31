@@ -8,7 +8,21 @@ log/
 .pytest_cache/
 .vscode/
 .idea/
+
+# Training artifacts
 runs/
-datasets/
+*/runs/
+
+# Model weights
+models/
+*/models/
 *.pt
 *.pth
+*.onnx
+
+# Datasets
+datasets/
+*/datasets/
+
+# OS/editor
+.DS_Store

@@ -1,0 +1,8 @@
+cat > perception/lane_detection/configs/dataset.yaml << 'EOF'
+path: perception/lane_detection/datasets
+train: images/train
+val: images/val
+
+names:
+  0: lane
+EOF
