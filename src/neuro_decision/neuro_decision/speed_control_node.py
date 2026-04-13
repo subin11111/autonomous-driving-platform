@@ -1,9 +1,12 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
-import math
 from time import time
 
+
+# PID 계산기
+# 입력: 속도 오차(error)
+# 출력: 스로틀 명령(연속값)
 class PIDController:
     def __init__(self, kp=1.0, ki=0.0, kd=0.1):
         self.kp = kp
@@ -23,31 +26,34 @@ class SpeedControlNode(Node):
     def __init__(self):
         super().__init__('speed_control_node')
         
-        # PID 컨트롤러 초기화 (스로틀용)
+        # ===== [제어기 설정] PID 게인 및 제어 주기 =====
         self.pid = PIDController(kp=0.5, ki=0.0, kd=0.1)
-        
-        # 현재 속도 구독 (CARLA 속도미터)
+        self.control_dt = 0.1
+
+        # ===== [입력 구독] 실제 속도 + 판단 노드 목표속도 =====
         self.speed_sub = self.create_subscription(
             Float64, '/carla/ego_vehicle/speedometer', self.speed_callback, 10)
 
-        # 장애물 거리 구독 (behavior_node에서 직접 전달)
-        self.obstacle_sub = self.create_subscription(
-            Float64, '/obstacle_distance', self.obstacle_callback, 10)
+        # behavior_node가 계산한 목표속도(m/s) 구독
+        self.desired_speed_sub = self.create_subscription(
+            Float64, '/desired_speed', self.desired_speed_callback, 10)
 
-        # 속도 명령 퍼블리시 (pure_pursuit_node에 전달)
+        # ===== [출력 발행] 하위 제어 어댑터로 전달할 명령 =====
         self.speed_pub = self.create_publisher(Float64, '/speed_command', 10)
         
         # 브레이크 신호 퍼블리시 (순수하게 브레이크용)
         self.brake_pub = self.create_publisher(Float64, '/brake_command', 10)
         
-        # 현재 상태
+        # ===== [내부 상태] 최신 속도 및 목표 속도 =====
         self.current_speed = 0.0
-        self.target_speed = 0.5  # 기본 목표 속도 (0.5 = 50%)
-        self.obstacle_distance = 99.0  # 장애물 거리 (behavior_node에서 추정)
+        self.target_speed = 0.0
+        self.speed_ready = False
+        self.target_ready = False
+        self.waiting_log_printed = False
         
-        # 타임아웃 관리
+        # ===== [안전장치] 입력 타임아웃 시 비상정지 =====
         self.last_speed_update = time()
-        self.last_obstacle_update = time()
+        self.last_desired_speed_update = time()
         self.sensor_timeout = 2.0  # 2초 타임아웃
         
         # 타이머 기반 PID 제어 (100ms 주기)
@@ -56,49 +62,57 @@ class SpeedControlNode(Node):
         self.get_logger().info('🚗 속도 제어 노드 가동! PID 컨트롤러 준비 완료 (타이머 주기: 100ms)')
 
     def speed_callback(self, msg):
+        # CARLA 속도계 값(m/s) 갱신
         self.current_speed = msg.data  # m/s 단위 (CARLA 기본)
+        self.speed_ready = True
         self.last_speed_update = time()
         self.get_logger().debug(f'📊 속도 수신: {self.current_speed:.2f} m/s')
 
-    def obstacle_callback(self, msg):
-        self.obstacle_distance = msg.data
-        self.last_obstacle_update = time()
-
-        if self.obstacle_distance < 10.0:
-            self.target_speed = 0.0
-        elif self.obstacle_distance < 20.0:
-            self.target_speed = 0.2
-        else:
-            self.target_speed = 0.5
-
-        self.get_logger().debug(f'🗺️ 장애물 거리: {self.obstacle_distance:.2f} m, 목표속도: {self.target_speed:.2f}')
+    def desired_speed_callback(self, msg):
+        # 행동 노드가 계산한 목표속도(m/s) 갱신
+        self.target_speed = max(0.0, msg.data)
+        self.target_ready = True
+        self.last_desired_speed_update = time()
+        self.get_logger().debug(f'🎯 목표속도 수신: {self.target_speed:.2f} m/s')
 
     def periodic_control(self):
         """타이머 기반 주기적 제어 (100ms)"""
-        # 📌 센서 타임아웃 확인 (주석: 비상 정지 로직 비활성화)
-        # current_time = time()
-        # speed_timeout = current_time - self.last_speed_update > self.sensor_timeout
-        # obstacle_timeout = current_time - self.last_obstacle_update > self.sensor_timeout
-        
-        # if speed_timeout:
-        #     self.get_logger().warning('⚠️ 속도 센서 타임아웃! (2초 이상 신호 없음)')
-        # if obstacle_timeout:
-        #     self.get_logger().warning('⚠️ 장애물 센서 타임아웃! (2초 이상 신호 없음)')
-        
-        # # 센서 타임아웃 시 안전 정지
-        # if speed_timeout or obstacle_timeout:
-        #     self.emergency_stop()
-        #     return
+        # 첫 메시지 수신 전에는 비상정지를 남발하지 않고 안전 대기
+        if not self.speed_ready or not self.target_ready:
+            if not self.waiting_log_printed:
+                self.get_logger().warning(
+                    '⏳ 입력 대기 중: /carla/ego_vehicle/speedometer 및 /desired_speed 첫 수신을 기다립니다.'
+                )
+                self.waiting_log_printed = True
+            self.publish_safe_stop()
+            return
+
+        self.waiting_log_printed = False
+
+        current_time = time()
+        speed_timeout = current_time - self.last_speed_update > self.sensor_timeout
+        target_timeout = current_time - self.last_desired_speed_update > self.sensor_timeout
+
+        if speed_timeout:
+            self.get_logger().warning('⚠️ 속도 센서 타임아웃! (2초 이상 신호 없음)')
+        if target_timeout:
+            self.get_logger().warning('⚠️ 목표 속도 타임아웃! (2초 이상 신호 없음)')
+
+        # 센서 타임아웃 시 안전 정지
+        if speed_timeout or target_timeout:
+            self.emergency_stop()
+            return
         
         # 속도 제어 업데이트
         self.update_speed_control()
 
     def update_speed_control(self):
+        # ===== [핵심 제어] 목표속도-현재속도 오차를 PID로 스로틀화 =====
         # 속도 오차 계산
         error = self.target_speed - self.current_speed
         
         # PID로 스로틀 명령 계산 (0.0 ~ 1.0 범위)
-        throttle_cmd = self.pid.compute(error, dt=0.1)
+        throttle_cmd = self.pid.compute(error, dt=self.control_dt)
         throttle_cmd = max(0.0, min(1.0, throttle_cmd))  # 클램핑
         
         # 브레이크 명령
@@ -114,7 +128,10 @@ class SpeedControlNode(Node):
         brake_msg.data = brake_cmd
         self.brake_pub.publish(brake_msg)
         
-        self.get_logger().debug(f'🏎️ 속도 제어: 현재 {self.current_speed:.2f} m/s, 목표 {self.target_speed:.2f}, 스로틀 {throttle_cmd:.2f}, 브레이크 {brake_cmd:.2f}')
+        self.get_logger().debug(
+            f'🏎️ 속도 제어: 현재 {self.current_speed:.2f} m/s, 목표 {self.target_speed:.2f} m/s, '
+            f'스로틀 {throttle_cmd:.2f}, 브레이크 {brake_cmd:.2f}'
+        )
 
     def emergency_stop(self):
         """비상 정지"""
@@ -126,6 +143,16 @@ class SpeedControlNode(Node):
         self.brake_pub.publish(brake_msg)
         
         # 스로틀 0
+        speed_msg = Float64()
+        speed_msg.data = 0.0
+        self.speed_pub.publish(speed_msg)
+
+    def publish_safe_stop(self):
+        """입력 대기/정상 감속용 안전 정지"""
+        brake_msg = Float64()
+        brake_msg.data = 1.0
+        self.brake_pub.publish(brake_msg)
+
         speed_msg = Float64()
         speed_msg.data = 0.0
         self.speed_pub.publish(speed_msg)

@@ -4,9 +4,9 @@
 
 ## 3가지 노드
 
-1. behavior_node - 신호등, 장애물 기반 의사결정
-2. pure_pursuit_node - 조향각 계산 및 제어
-3. speed_control_node - PID 기반 속도 제어
+1. behavior_node - 신호등/장애물/차선 기반으로 목표 속도/조향 직접 생성
+2. speed_control_node - 목표 속도(m/s)와 실제 속도로 PID 스로틀/브레이크 생성
+3. pure_pursuit_node - 목표 조향과 스로틀/브레이크를 차량 제어 명령으로 변환
 
 ## 필요한 토픽 (인지 모듈에서 발행)
 
@@ -16,7 +16,8 @@
 
 ## 발행하는 토픽
 
-- /goal_pose (목표점)
+- /desired_speed (목표 속도, m/s)
+- /desired_steer (목표 조향, -1.0 ~ 1.0)
 - /carla/ego_vehicle/vehicle_control_cmd (제어 명령)
 
 ## 실행

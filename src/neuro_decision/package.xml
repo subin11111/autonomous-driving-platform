@@ -3,9 +3,9 @@
 <package format="3">
   <name>neuro_decision</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Decision and control package for autonomous driving in ROS 2/CARLA.</description>
   <maintainer email="junghun@todo.todo">junghun</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
@@ -13,6 +13,8 @@
   <depend>nav_msgs</depend>
   <depend>std_msgs</depend>
   <depend>carla_msgs</depend>
+  <depend>sensor_msgs_py</depend>
+  <depend>robot_localization</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
