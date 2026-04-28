@@ -1,0 +1,38 @@
+{
+  "objects": [
+    {
+      "type": "vehicle.tesla.model3",
+      "id": "ego_vehicle",
+      "role_name": "ego_vehicle",
+      "spawn_point": {
+        "x": 144.06,
+        "y": 133.24,
+        "z": 0.30,
+        "roll": 0.0,
+        "pitch": 0.0,
+        "yaw": 0.0
+      },
+      "sensors": [
+        {
+          "type": "sensor.pseudo.speedometer",
+          "id": "speedometer"
+        },
+        {
+          "type": "sensor.camera.rgb",
+          "id": "front_rgb",
+          "spawn_point": {
+            "x": 1.5,
+            "y": 0.0,
+            "z": 2.4,
+            "roll": 0.0,
+            "pitch": -15.0,
+            "yaw": 0.0
+          },
+          "image_size_x": 800,
+          "image_size_y": 600,
+          "fov": 90.0
+        }
+      ]
+    }
+  ]
+}
