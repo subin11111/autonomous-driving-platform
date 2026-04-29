@@ -21,22 +21,15 @@ def generate_launch_description():
         output='screen'
     )
 
-    pure_pursuit_node = Node(
+    steering_command_node = Node(
         package='neuro_decision',
-        executable='pure_pursuit', # (executable name is 'pure_pursuit' but file is 'pure_pursuit_node.py')
-        name='pure_pursuit_node',
+        executable='steering_command_node',
+        name='steering_command_node',
         output='screen',
         parameters=[{
             'wheelbase': ParameterValue(LaunchConfiguration('wheelbase'), value_type=float),
             'max_steering_angle_rad': ParameterValue(LaunchConfiguration('max_steering_angle_rad'), value_type=float),
         }]
-    )
-
-    speed_control_node = Node(
-        package='neuro_decision',
-        executable='speed_control',
-        name='speed_control_node',
-        output='screen'
     )
 
     # 4. robot_localization 패키지의 EKF(확장 칼만 필터) 노드를 실행 준비
@@ -54,9 +47,8 @@ def generate_launch_description():
         DeclareLaunchArgument('wheelbase', default_value='2.9', description='차량 휠베이스 [m]'),
         DeclareLaunchArgument('max_steering_angle_rad', default_value='1.22', description='최대 조향각 [rad]'),
         
-        # 준비된 4개의 노드를 일괄 가동!
+        # 준비된 핵심 노드를 일괄 가동!
         behavior_node,
-        pure_pursuit_node,
-        speed_control_node,
+        steering_command_node,
         localization_node,
     ])

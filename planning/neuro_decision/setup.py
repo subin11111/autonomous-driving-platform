@@ -16,9 +16,7 @@ setup(
     entry_points={
         'console_scripts': [
             'behavior_node = neuro_decision.behavior_node:main',
-            'speed_control_node = neuro_decision.speed_control_node:main',
-            'pure_pursuit_node = neuro_decision.pure_pursuit_node:main',
-            'waypoint_behavior_node = neuro_decision.waypoint_behavior_node:main',
+            'steering_command_node = neuro_decision.steering_command_node:main',
         ],
     },
 )

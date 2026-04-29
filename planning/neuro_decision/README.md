@@ -2,15 +2,33 @@
 
 Perception 기반 자율주행 자동차의 판단 및 제어 모듈 (v4+)
 
+## 🔌 현재 토픽 계약
+
+### 제어팀이 받는 토픽
+- `/desired_speed` (`std_msgs/Float64`): 목표 속도 [m/s]
+- `/desired_steering_angle_rad` (`std_msgs/Float64`): 목표 조향각 [rad]
+
+### 인지팀이 넘겨주는 토픽
+- `/perception/real_world_lane_points` (`sensor_msgs/PointCloud2`)
+- `/perception/closest_obstacle` (`sensor_msgs/PointCloud2`)
+- `/perception/drivable_area` (`sensor_msgs/PointCloud2`)
+- `/traffic_light_state` (`std_msgs/String`)
+- `/carla/ego_vehicle/speedometer` (`std_msgs/Float32`)
+- `/yolopv2/detections` (`vision_msgs/Detection2DArray`)
+
 ## 📋 개요
 
-3개 노드로 구성된 제어 스택:
+현재 실사용 제어 스택:
 
 | 노드 | 역할 | 입력 | 출력 |
 |------|------|------|------|
 | **behavior_node** | Perception 데이터 기반 의사결정 | 차선점, 장애물, 신호등 | 목표속도, 목표점 |
-| **speed_control_node** | 목표속도 추종 제어 | 목표속도, 현재속도, 상태 | 스로틀, 브레이크 |
-| **pure_pursuit_node** | 목표점 기반 조향 제어 | 목표점, 스로틀, 브레이크 | 차량제어명령 |
+| **steering_command_node** | 목표점 기반 조향각 생성 | 목표점, 상태 | 조향각, 정규화 조향값 |
+
+보관 중인 CARLA용 백업 노드:
+- `speed_control_node.py`
+- `pure_pursuit_node.py`
+- `waypoint_behavior_node.py`
 
 ---
 
@@ -23,6 +41,7 @@ Perception 기반 자율주행 자동차의 판단 및 제어 모듈 (v4+)
 | `/perception/drivable_area` | `sensor_msgs/PointCloud2` | 주행 가능 영역 |
 | `/traffic_light_state` | `std_msgs/String` | 신호등 상태 (RED/YELLOW/GREEN) |
 | `/carla/ego_vehicle/speedometer` | `std_msgs/Float32` | 현재 속도 (m/s) |
+| `/yolopv2/detections` | `vision_msgs/Detection2DArray` | 차량/보행자 검출 결과 |
 
 ---
 
@@ -34,11 +53,9 @@ Perception 기반 자율주행 자동차의 판단 및 제어 모듈 (v4+)
 | `/target_point` | `geometry_msgs/Point` | 차량 기준 목표점 (m) |
 | `/behavior_state` | `std_msgs/String` | 현재 행동 상태 |
 | `/behavior_debug_text` | `std_msgs/String` | 디버그 메시지 |
-| `/speed_command` | `std_msgs/Float64` | 스로틀 명령 (0.0~1.0) |
-| `/brake_command` | `std_msgs/Float64` | 브레이크 명령 (0.0~1.0) |
-| `/speed_control_debug_text` | `std_msgs/String` | 속도제어 디버그 메시지 |
-| `/carla/ego_vehicle/vehicle_control_cmd` | `carla_msgs/CarlaEgoVehicleControl` | 최종 제어 명령 |
-| `/pure_pursuit_status` | `std_msgs/String` | 조향 상태 메시지 |
+| `/desired_steering_angle_rad` | `std_msgs/Float64` | 목표 조향각 (rad) |
+| `/desired_steering_normalized` | `std_msgs/Float64` | 정규화 조향값 (-1.0~1.0) |
+| `/steering_command_debug_text` | `std_msgs/String` | 조향 계산 디버그 메시지 |
 
 ---
 
@@ -147,7 +164,9 @@ obstacle_corridor_half_width_m: 2.5        # 장애물 감지 폭 (m)
 
 ---
 
-### 2️⃣ speed_control_node.py (부드러운 속도 제어)
+### 2️⃣ speed_control_node.py (CARLA 백업용 속도 제어)
+
+이 노드는 현재 실차 제어 경로에서는 사용하지 않고, CARLA 시뮬레이션 백업으로 보관 중입니다.
 
 #### Smoothing 파라미터 (Perception 기반 대응)
 ```yaml
@@ -216,7 +235,9 @@ launch_duration_s: 1.0                     # 출발 지속 시간 (초)
 
 ---
 
-### 3️⃣ pure_pursuit_node.py (안정적인 조향 제어)
+### 3️⃣ pure_pursuit_node.py (CARLA 백업용 조향 제어)
+
+이 노드는 현재 실차 제어 경로에서는 사용하지 않고, CARLA 시뮬레이션 백업으로 보관 중입니다.
 
 #### 기본 파라미터
 ```yaml
@@ -293,20 +314,19 @@ ros2 launch neuro_decision neuro_decision.launch.py
 
 # 개별 노드 실행
 ros2 run neuro_decision behavior_node
-ros2 run neuro_decision speed_control_node
-ros2 run neuro_decision pure_pursuit_node
+ros2 run neuro_decision steering_command_node
 ```
 
 ### 3. 모니터링
 ```bash
 # 디버그 메시지 확인
 ros2 topic echo /behavior_debug_text
-ros2 topic echo /speed_control_debug_text
-ros2 topic echo /pure_pursuit_status
+ros2 topic echo /steering_command_debug_text
 
 # 목표값 모니터링
 ros2 topic echo /desired_speed
 ros2 topic echo /target_point
+ros2 topic echo /desired_steering_angle_rad
 ```
 
 ---
@@ -343,17 +363,16 @@ behavior_node (perception 기반 판단)
     ├─ 차선점 기반 목표점 생성
     └─→ /desired_speed, /target_point
         ↓
-speed_control_node (부드러운 속도 제어)
-    ├─ 목표속도 추종 (exponential filter)
-    ├─ 오차 기반 단계 제어
-    └─→ /speed_command, /brake_command
+steering_command_node (목표 조향각 생성)
+  ├─ Pure pursuit 기반 조향 계산
+  ├─ 상태별 gain / EMA / rate limit
+  └─→ /desired_steering_angle_rad, /desired_steering_normalized
         ↓
-pure_pursuit_node (안정적인 조향)
-    ├─ Pure pursuit 알고리즘
-    ├─ 조향 필터링 (EMA + rate limit)
-    └─→ /carla/ego_vehicle/vehicle_control_cmd
-        ↓
-CARLA Vehicle
+제어팀 / 아두이노
+  ├─ /desired_speed
+  └─ /desired_steering_angle_rad
+    ↓
+실차 모터 / 서보
 ```
 
 ---
@@ -371,6 +390,6 @@ CARLA Vehicle
 
 ## 📝 팀 정보
 
-- **판단/제어 모듈**: 당신 (behavior_node, speed_control_node, pure_pursuit_node)
+- **판단/제어 모듈**: 당신 (behavior_node, steering_command_node)
 - **Perception 모듈**: 팀원 (차선 인식, 장애물 감지)
 
