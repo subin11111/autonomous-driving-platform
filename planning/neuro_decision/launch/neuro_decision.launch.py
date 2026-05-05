@@ -6,6 +6,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
+
 def generate_launch_description():
     # 1. neuro_decision 패키지의 'share' 폴더 위치를 찾습니다. (설치된 config 파일을 찾기 위해)
     pkg_dir = get_package_share_directory('neuro_decision')
@@ -41,13 +42,35 @@ def generate_launch_description():
         parameters=[config_file] # ⭐ 방금 위에서 완성한 경로로 지시서 전달!
     )
 
+    # 5. Perception 노드: YOLO 기반 차선/도로 감지
+    perception_inference_node = Node(
+        package='yolopv2_ros',
+        executable='perception_inference_node',
+        name='perception_inference_node',
+        output='screen',
+        arguments=[]
+    )
+
+    # 6. Perception 노드: 2D 마스크를 3D 포인트로 변환
+    masked_ray_ground_projection_node = Node(
+        package='yolopv2_ros',
+        executable='masked_ray_ground_projection',
+        name='masked_ray_ground_projection_node',
+        output='screen',
+        arguments=[]
+    )
+
     return LaunchDescription([
         # 실행 모드를 sim으로 기본 설정 (나중에 real로 바꿀 수 있게 준비)
         DeclareLaunchArgument('mode', default_value='sim', description='실행 모드: sim 또는 real'),
         DeclareLaunchArgument('wheelbase', default_value='2.9', description='차량 휠베이스 [m]'),
         DeclareLaunchArgument('max_steering_angle_rad', default_value='1.22', description='최대 조향각 [rad]'),
-        
-        # 준비된 핵심 노드를 일괄 가동!
+
+        # Perception 노드 먼저 시작 (다른 노드들의 입력 역할)
+        perception_inference_node,
+        masked_ray_ground_projection_node,
+
+        # 제어 노드
         behavior_node,
         steering_command_node,
         localization_node,

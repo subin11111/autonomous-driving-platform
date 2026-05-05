@@ -8,91 +8,104 @@ import time
 
 class VideoPublisher(Node):
     def __init__(self):
-        super().__init__('video_publisher')
+        super().__init__('video_to_topic_node')
 
+        # declare parameters
         self.declare_parameter('video_path', '/home/subin/test.mp4')
-        self.declare_parameter('topic_name', '/camera/image_raw')
-        self.declare_parameter('fps', 20.0)
+        self.declare_parameter('output_topic', '/camera/image_raw')
         self.declare_parameter('loop', True)
-        self.declare_parameter('display', False)
-        self.declare_parameter('log_every_n_frames', 60)
+        self.declare_parameter('fps', 30.0)
+        self.declare_parameter('frame_id', 'camera')
+        self.declare_parameter('publish_width', 0)
+        self.declare_parameter('publish_height', 0)
+        self.declare_parameter('log_every_n_frames', 30)
 
         video_path = self.get_parameter('video_path').get_parameter_value().string_value
-        topic_name = self.get_parameter('topic_name').get_parameter_value().string_value
-        requested_fps = self.get_parameter('fps').get_parameter_value().double_value
+        output_topic = self.get_parameter('output_topic').get_parameter_value().string_value
+        requested_fps = float(self.get_parameter('fps').get_parameter_value().double_value)
         self.loop = self.get_parameter('loop').get_parameter_value().bool_value
-        self.display = self.get_parameter('display').get_parameter_value().bool_value
+        self.frame_id = self.get_parameter('frame_id').get_parameter_value().string_value
+        self.publish_width = int(self.get_parameter('publish_width').get_parameter_value().integer_value)
+        self.publish_height = int(self.get_parameter('publish_height').get_parameter_value().integer_value)
         self.log_every_n_frames = int(self.get_parameter('log_every_n_frames').get_parameter_value().integer_value)
 
-        self.publisher_ = self.create_publisher(Image, topic_name, 10)
+        self.publisher_ = self.create_publisher(Image, output_topic, 10)
         self.bridge = CvBridge()
 
+        # open video
         self.cap = cv2.VideoCapture(video_path)
         if not self.cap.isOpened():
-            self.get_logger().error(f'비디오 열기 실패: {video_path}')
-            raise RuntimeError(f'비디오 열기 실패: {video_path}')
+            self.get_logger().error(f'Video open failed: {video_path}')
+            raise RuntimeError(f'Video open failed: {video_path}')
 
         source_fps = float(self.cap.get(cv2.CAP_PROP_FPS) or 0.0)
-        if requested_fps > 0.0:
-            self.fps = requested_fps
-        elif source_fps > 0.0:
+        if source_fps and requested_fps <= 0.0:
             self.fps = source_fps
+        elif requested_fps > 0.0:
+            self.fps = requested_fps
         else:
-            self.fps = 20.0
+            self.fps = 30.0
 
         self.frame_count = 0
         self.start_time = time.time()
-        self.window_name = 'video_to_topic_preview'
 
-        timer_period = 1.0 / self.fps
+        timer_period = 1.0 / max(1.0, float(self.fps))
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
-        self.get_logger().info(f'비디오 퍼블리시 시작')
-        self.get_logger().info(f'video_path: {video_path}')
-        self.get_logger().info(f'topic_name: {topic_name}')
-        self.get_logger().info(f'fps(requested): {requested_fps}')
-        self.get_logger().info(f'fps(source): {source_fps:.3f}')
-        self.get_logger().info(f'fps(publish): {self.fps:.3f}')
-        self.get_logger().info(f'loop: {self.loop}, display: {self.display}')
+        self.get_logger().info(f'Video publisher initialized. video_path={video_path} output_topic={output_topic} fps={self.fps} loop={self.loop}')
 
     def timer_callback(self):
-        ret, frame = self.cap.read()
-
-        if not ret:
-            if not self.loop:
-                self.get_logger().info('영상 끝. 퍼블리시를 중단합니다.')
-                self.timer.cancel()
-                return
-
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        try:
             ret, frame = self.cap.read()
+
             if not ret:
-                self.get_logger().warning('영상 루프 재시작 실패. 다음 주기에서 재시도합니다.')
-                return
+                if not self.loop:
+                    self.get_logger().info('Video ended; stopping publish (loop=false).')
+                    self.timer.cancel()
+                    return
 
-        msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'camera'
+                # rewind
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret, frame = self.cap.read()
+                if not ret:
+                    self.get_logger().warning('Failed to restart video loop; will retry next tick.')
+                    return
 
-        self.publisher_.publish(msg)
+            # optional resize
+            in_h, in_w = frame.shape[:2]
+            out_w, out_h = self.publish_width, self.publish_height
+            if out_w > 0 and out_h > 0 and (out_w != in_w or out_h != in_h):
+                frame = cv2.resize(frame, (out_w, out_h), interpolation=cv2.INTER_LINEAR)
 
-        if self.display:
-            cv2.imshow(self.window_name, frame)
-            cv2.waitKey(1)
+            msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = self.frame_id
 
-        self.frame_count += 1
-        if self.log_every_n_frames > 0 and self.frame_count % self.log_every_n_frames == 0:
-            elapsed = max(time.time() - self.start_time, 1e-6)
-            self.get_logger().info(
-                f'published frames: {self.frame_count}, avg_fps: {self.frame_count / elapsed:.2f}'
-            )
+            self.publisher_.publish(msg)
+
+            self.frame_count += 1
+            if self.log_every_n_frames > 0 and self.frame_count % self.log_every_n_frames == 0:
+                elapsed = max(time.time() - self.start_time, 1e-6)
+                self.get_logger().info(
+                    f'published frames: {self.frame_count}, avg_fps: {self.frame_count / elapsed:.2f}, output_topic={self.publisher_.topic_name}'
+                )
+        except Exception as e:
+            self.get_logger().error(f'Error in timer callback: {e}')
 
     def destroy_node(self):
-        if hasattr(self, 'cap') and self.cap.isOpened():
-            self.cap.release()
-        if getattr(self, 'display', False):
+        try:
+            if hasattr(self, 'cap') and self.cap.isOpened():
+                self.cap.release()
+        except Exception:
+            pass
+        try:
             cv2.destroyAllWindows()
-        super().destroy_node()
+        except Exception:
+            pass
+        try:
+            super().destroy_node()
+        except Exception:
+            pass
 
 
 def main(args=None):
@@ -104,8 +117,15 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        try:
+            node.destroy_node()
+        except Exception:
+            pass
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':
