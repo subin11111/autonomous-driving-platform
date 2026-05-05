@@ -7,6 +7,7 @@ Perception 기반 자율주행 자동차의 판단 및 제어 모듈 (v4+)
 ### 제어팀이 받는 토픽
 - `/desired_speed` (`std_msgs/Float64`): 목표 속도 [m/s]
 - `/desired_steering_angle_rad` (`std_msgs/Float64`): 목표 조향각 [rad]
+- '단위 반드시 확인할 것, 요청시 단위 변환 가능'
 
 ### 인지팀이 넘겨주는 토픽
 - `/perception/real_world_lane_points` (`sensor_msgs/PointCloud2`)

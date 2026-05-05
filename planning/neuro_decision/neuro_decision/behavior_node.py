@@ -41,19 +41,20 @@ class BehaviorNode(Node):
         self.declare_parameter('control_period_s', 0.1)
 
         # ===== 동적 속도 제어 파라미터 =====
-        self.declare_parameter('desired_speed_straight_mps', 2.20)
-        self.declare_parameter('desired_speed_gentle_turn_mps', 1.25)
-        self.declare_parameter('desired_speed_sharp_turn_mps', 0.95)
+        self.declare_parameter('desired_speed_straight_mps', 1.10)
+        self.declare_parameter('desired_speed_gentle_turn_mps', 0.75)
+        self.declare_parameter('desired_speed_sharp_turn_mps', 0.45)
+        self.declare_parameter('max_desired_speed_mps', 1.40)
 
         self.declare_parameter('turn_threshold_abs_local_y_small', 0.35)
         self.declare_parameter('turn_threshold_abs_local_y_large', 0.85)
 
         # ===== 목표점 생성 파라미터 =====
-        self.declare_parameter('lookahead_straight_m', 8.0)
-        self.declare_parameter('lookahead_turn_m', 4.2)
+        self.declare_parameter('lookahead_straight_m', 3.5)
+        self.declare_parameter('lookahead_turn_m', 2.0)
         self.declare_parameter('averaging_window_straight', 8)
         self.declare_parameter('averaging_window_turn', 3)
-        self.declare_parameter('target_y_clamp_m', 1.8)
+        self.declare_parameter('target_y_clamp_m', 1.2)
         self.declare_parameter('center_offset_m', -0.10)
         self.declare_parameter('target_smoothing_alpha', 0.60)
 
@@ -64,25 +65,28 @@ class BehaviorNode(Node):
         self.declare_parameter('speed_timeout_s', 1.0)
         self.declare_parameter('detection_timeout_s', 0.7)
         self.declare_parameter('drivable_timeout_s', 0.5)
-        self.declare_parameter('drivable_area_topic', '/perception/drivable_area')
+        self.declare_parameter('drivable_area_topic', '/perception/real_world_drivable_points')
 
         # ===== 안전 거리 임계값 =====
         self.declare_parameter('caution_distance_m', 20.0)
-        self.declare_parameter('emergency_stop_distance_m', 3.5)
+        self.declare_parameter('emergency_stop_distance_m', 0.8)
+        self.declare_parameter('near_obstacle_stop_distance_m', 1.8)
 
         # ===== Perception 데이터 필터 =====
         self.declare_parameter('lane_y_limit_m', 8.0)
-        self.declare_parameter('obstacle_corridor_half_width_m', 2.5)
+        self.declare_parameter('obstacle_corridor_half_width_m', 1.0)
 
         # ===== Vehicle 추종 파라미터 =====
-        self.declare_parameter('follow_vehicle_min_distance_m', 5.0)
-        self.declare_parameter('follow_vehicle_max_distance_m', 15.0)
+        self.declare_parameter('follow_vehicle_min_distance_m', 1.6)
+        self.declare_parameter('follow_vehicle_max_distance_m', 5.0)
         self.declare_parameter('follow_vehicle_speed_reduction_factor', 0.8)
         self.declare_parameter('follow_vehicle_lane_threshold_m', 0.5)
-        self.declare_parameter('follow_vehicle_time_headway_s', 1.5)
-        self.declare_parameter('follow_vehicle_min_gap_m', 3.0)
+        self.declare_parameter('follow_vehicle_time_headway_s', 1.2)
+        self.declare_parameter('follow_vehicle_min_gap_m', 1.0)
+        self.declare_parameter('follow_vehicle_min_speed_mps', 0.25)
         self.declare_parameter('follow_vehicle_lost_count_max', 5)
         self.declare_parameter('follow_vehicle_detection_score_threshold', 0.35)
+        self.declare_parameter('speed_topic', '/carla/ego_vehicle/speedometer')
 
         # ===== Lane change 파라미터 =====
         self.declare_parameter('lane_change_min_safe_distance_m', 8.0)
@@ -90,11 +94,16 @@ class BehaviorNode(Node):
         self.declare_parameter('lane_change_preparation_distance_m', 10.0)
         self.declare_parameter('lane_change_lateral_offset_m', 1.8)
         self.declare_parameter('lane_change_ramp_duration_s', 2.0)
-        self.declare_parameter('lane_change_speed_mps', 1.2)
+        self.declare_parameter('lane_change_speed_mps', 0.45)
         self.declare_parameter('lane_change_front_safety_distance_m', 10.0)
         self.declare_parameter('lane_change_rear_safety_distance_m', 8.0)
+        self.declare_parameter('enable_lane_change', False)
+        self.declare_parameter('stop_while_avoidance_not_committed', True)
+        self.declare_parameter('creep_speed_mps', 0.20)
 
         # ===== Traffic light & stopline 파라미터 =====
+        self.declare_parameter('enable_traffic_light', False)
+        self.declare_parameter('enable_stopline', False)
         self.declare_parameter('red_light_queue_lookahead_m', 15.0)
         self.declare_parameter('stopline_hold_duration_s', 3.0)
         self.declare_parameter('red_light_ignore_window_s', 2.0)
@@ -108,6 +117,9 @@ class BehaviorNode(Node):
         self.declare_parameter('pedestrian_intrusion_distance_m', 5.0)
         self.declare_parameter('pedestrian_intrusion_lateral_threshold_m', 1.5)
         self.declare_parameter('pedestrian_detection_score_threshold', 0.30)
+        self.declare_parameter('pedestrian_emergency_distance_m', 0.6)
+        self.declare_parameter('pedestrian_stop_distance_m', 1.5)
+        self.declare_parameter('enable_cutin_detection', False)
         self.declare_parameter('cutin_lateral_velocity_threshold_mps', 0.3)
         self.declare_parameter('cutin_detection_distance_m', 15.0)
 
@@ -125,6 +137,7 @@ class BehaviorNode(Node):
         self.desired_speed_straight_mps = float(self.get_parameter('desired_speed_straight_mps').value)
         self.desired_speed_gentle_turn_mps = float(self.get_parameter('desired_speed_gentle_turn_mps').value)
         self.desired_speed_sharp_turn_mps = float(self.get_parameter('desired_speed_sharp_turn_mps').value)
+        self.max_desired_speed_mps = float(self.get_parameter('max_desired_speed_mps').value)
 
         self.turn_threshold_small = float(self.get_parameter('turn_threshold_abs_local_y_small').value)
         self.turn_threshold_large = float(self.get_parameter('turn_threshold_abs_local_y_large').value)
@@ -149,6 +162,7 @@ class BehaviorNode(Node):
 
         self.caution_distance_m = float(self.get_parameter('caution_distance_m').value)
         self.emergency_stop_distance_m = float(self.get_parameter('emergency_stop_distance_m').value)
+        self.near_obstacle_stop_distance_m = float(self.get_parameter('near_obstacle_stop_distance_m').value)
 
         self.lane_y_limit_m = float(self.get_parameter('lane_y_limit_m').value)
         self.obstacle_corridor_half_width_m = float(self.get_parameter('obstacle_corridor_half_width_m').value)
@@ -159,8 +173,10 @@ class BehaviorNode(Node):
         self.follow_vehicle_lane_threshold_m = float(self.get_parameter('follow_vehicle_lane_threshold_m').value)
         self.follow_vehicle_time_headway_s = float(self.get_parameter('follow_vehicle_time_headway_s').value)
         self.follow_vehicle_min_gap_m = float(self.get_parameter('follow_vehicle_min_gap_m').value)
+        self.follow_vehicle_min_speed_mps = float(self.get_parameter('follow_vehicle_min_speed_mps').value)
         self.follow_vehicle_lost_count_max = int(self.get_parameter('follow_vehicle_lost_count_max').value)
         self.follow_vehicle_detection_score_threshold = float(self.get_parameter('follow_vehicle_detection_score_threshold').value)
+        self.speed_topic = str(self.get_parameter('speed_topic').value)
 
         self.lane_change_min_safe_distance_m = float(self.get_parameter('lane_change_min_safe_distance_m').value)
         self.lane_change_max_lateral_distance_m = float(self.get_parameter('lane_change_max_lateral_distance_m').value)
@@ -170,7 +186,12 @@ class BehaviorNode(Node):
         self.lane_change_speed_mps = float(self.get_parameter('lane_change_speed_mps').value)
         self.lane_change_front_safety_distance_m = float(self.get_parameter('lane_change_front_safety_distance_m').value)
         self.lane_change_rear_safety_distance_m = float(self.get_parameter('lane_change_rear_safety_distance_m').value)
+        self.enable_lane_change = bool(self.get_parameter('enable_lane_change').value)
+        self.stop_while_avoidance_not_committed = bool(self.get_parameter('stop_while_avoidance_not_committed').value)
+        self.creep_speed_mps = float(self.get_parameter('creep_speed_mps').value)
 
+        self.enable_traffic_light = bool(self.get_parameter('enable_traffic_light').value)
+        self.enable_stopline = bool(self.get_parameter('enable_stopline').value)
         self.red_light_queue_lookahead_m = float(self.get_parameter('red_light_queue_lookahead_m').value)
         self.stopline_hold_duration_s = float(self.get_parameter('stopline_hold_duration_s').value)
         self.red_light_ignore_window_s = float(self.get_parameter('red_light_ignore_window_s').value)
@@ -182,6 +203,9 @@ class BehaviorNode(Node):
         self.pedestrian_intrusion_distance_m = float(self.get_parameter('pedestrian_intrusion_distance_m').value)
         self.pedestrian_intrusion_lateral_threshold_m = float(self.get_parameter('pedestrian_intrusion_lateral_threshold_m').value)
         self.pedestrian_detection_score_threshold = float(self.get_parameter('pedestrian_detection_score_threshold').value)
+        self.pedestrian_emergency_distance_m = float(self.get_parameter('pedestrian_emergency_distance_m').value)
+        self.pedestrian_stop_distance_m = float(self.get_parameter('pedestrian_stop_distance_m').value)
+        self.enable_cutin_detection = bool(self.get_parameter('enable_cutin_detection').value)
         self.cutin_lateral_velocity_threshold_mps = float(self.get_parameter('cutin_lateral_velocity_threshold_mps').value)
         self.cutin_detection_distance_m = float(self.get_parameter('cutin_detection_distance_m').value)
 
@@ -219,7 +243,7 @@ class BehaviorNode(Node):
         )
         self.speed_sub = self.create_subscription(
             Float32,
-            '/carla/ego_vehicle/speedometer',
+            self.speed_topic,
             self.speed_callback,
             10,
         )
@@ -258,36 +282,33 @@ class BehaviorNode(Node):
         self.obstacle_distance = 99.0
         self.obstacle_x = 99.0
         self.obstacle_y = 0.0
-        self.obstacle_type = ObstacleType.UNKNOWN
 
         self.lead_vehicle_distance = 99.0
         self.lead_vehicle_x = 99.0
         self.lead_vehicle_y = 0.0
-        self.lead_vehicle_speed_estimated = 0.0
         self.lead_vehicle_lost_count = 0
 
         # detection topic liveliness vs presence
         self.detection_topic_alive = False
         self.detections_present = False
 
-        self.lane_change_target_direction = None
         self.lane_change_start_time = None
-        self.lane_change_lateral_offset_progress = 0.0
 
-        self.tracked_static_id = None
+        self.last_static_obstacle_x = None
+        self.last_static_obstacle_y = None
         self.static_seen_count = 0
         self.avoidance_committed = False
-        self.committed_offset = 0.0
         self.return_finish_count = 0
+        self.static_track_match_distance_m = 1.2
 
-        self.red_light_queue_lead_distance = 99.0
+        self.stopline_mode = 'DISABLED'
         self.stopline_hold_active = False
         self.stopline_hold_until = None
-        self.red_light_ignore_until = None
-        self.unsigned_stopline_latched = False
 
         self.pedestrian_intrusion_detected = False
         self.pedestrian_intrusion_distance = 99.0
+        self.pedestrian_intrusion_severity = 'NONE'
+        self.pedestrian_detection_warning = False
         self.cutin_intrusion_detected = False
         self.cutin_intrusion_distance = 99.0
 
@@ -296,15 +317,16 @@ class BehaviorNode(Node):
 
         self.filtered_target_x = None
         self.filtered_target_y = None
-        self.filtered_desired_speed = 1.0
+        self.filtered_desired_speed = 0.0
 
         self.desired_speed = 0.0
 
-        self.avoidance_active = False
-        self.path_blocked = False
         self.input_stale = True
+        self.main_lane_blocked = False
         self.left_lane_possible = False
         self.right_lane_possible = False
+        self.left_target_y_debug = 0.0
+        self.right_target_y_debug = 0.0
 
         self.fusion_mode = 'NO_CLASS_INFO'
         self.degraded_mode = 'FAILSAFE'
@@ -323,9 +345,15 @@ class BehaviorNode(Node):
         self.last_detection_update = now
         self.last_drivable_update = now
 
+        self.received_lane = False
+        self.received_obstacle = False
+        self.received_drivable = False
+        self.received_speed = False
+        self.received_detection = False
+        self.received_traffic_light = False
+
         self.last_state_log = None
         self.last_reason_log = None
-        self.last_timeout_log = ''
 
         self.timer = self.create_timer(self.control_period_s, self.periodic_update)
 
@@ -335,6 +363,7 @@ class BehaviorNode(Node):
     # 콜백
     # =========================
     def lane_callback(self, msg: PointCloud2):
+        self.received_lane = True
         self.last_lane_update = monotonic()
         raw_points = list(pc2.read_points(msg, skip_nans=True))
         if not raw_points:
@@ -353,6 +382,7 @@ class BehaviorNode(Node):
         self.lane_points = lane_points
 
     def obstacle_callback(self, msg: PointCloud2):
+        self.received_obstacle = True
         self.last_obstacle_update = monotonic()
         raw_points = list(pc2.read_points(msg, skip_nans=True))
         if not raw_points:
@@ -368,6 +398,7 @@ class BehaviorNode(Node):
         self.obstacle_points = points
 
     def drivable_area_callback(self, msg: PointCloud2):
+        self.received_drivable = True
         self.last_drivable_update = monotonic()
         raw_points = list(pc2.read_points(msg, skip_nans=True))
         if not raw_points:
@@ -376,6 +407,7 @@ class BehaviorNode(Node):
         self.drivable_area_points = [(float(p[0]), float(p[1])) for p in raw_points]
 
     def traffic_light_callback(self, msg: String):
+        self.received_traffic_light = True
         self.last_tl_update = monotonic()
         sign = msg.data.strip().upper()
         if sign in ['RED', 'YELLOW', 'GREEN']:
@@ -383,9 +415,11 @@ class BehaviorNode(Node):
 
     def speed_callback(self, msg: Float32):
         self.current_speed_mps = max(0.0, float(msg.data))
+        self.received_speed = True
         self.last_speed_update = monotonic()
 
     def detection_callback(self, msg: Detection2DArray):
+        self.received_detection = True
         self.last_detection_update = monotonic()
         self.latest_detections = self.parse_yolopv2_detections(msg)
         self.detection_class_summary = self.get_detection_class_summary()
@@ -412,20 +446,9 @@ class BehaviorNode(Node):
                     # 결과가 있지만 id/label이 비어있는 경우
                     best_label = 'unknown'
 
-                bbox = getattr(det, 'bbox', None)
-                center_x = None
-                center_y = None
-                if bbox is not None:
-                    center = getattr(bbox, 'center', None)
-                    if center is not None:
-                        center_x = float(getattr(center.position, 'x', 0.0)) if hasattr(center, 'position') else float(getattr(center, 'x', 0.0))
-                        center_y = float(getattr(center.position, 'y', 0.0)) if hasattr(center, 'position') else float(getattr(center, 'y', 0.0))
-
                 parsed.append({
                     'label': best_label,
                     'score': float(best_score),
-                    'center_x': center_x,
-                    'center_y': center_y,
                 })
         except Exception:
             return []
@@ -537,39 +560,15 @@ class BehaviorNode(Node):
         else:
             base_type = ObstacleType.UNKNOWN
 
-        # If no detections present, return geometry-based type
-        if not self.detections_present:
-            return base_type
+        # Detection summary is auxiliary only. Do not directly match image-pixel
+        # detections with lidar metric coordinates here.
+        if base_type == ObstacleType.UNKNOWN and self.detection_valid and self.has_vehicle_detection() and z >= 0.4:
+            return ObstacleType.VEHICLE
 
-        # Use detection info only as auxiliary evidence and be conservative
-        vehicle_tokens = {'car', 'truck', 'bus', 'motorcycle', 'vehicle'}
-        pedestrian_tokens = {'person', 'pedestrian'}
+        if base_type == ObstacleType.UNKNOWN and self.detection_valid and self.has_pedestrian_detection():
+            if x <= self.pedestrian_intrusion_distance_m and abs(y) <= self.pedestrian_intrusion_lateral_threshold_m and 0.2 <= z <= 2.0:
+                return ObstacleType.PEDESTRIAN
 
-        for det in self.latest_detections:
-            label = det.get('label', '')
-            score = float(det.get('score', 0.0))
-            cx = det.get('center_x', None)
-            cy = det.get('center_y', None)
-
-            # If detection has no spatial center, skip it as auxiliary info
-            if cx is None or cy is None:
-                continue
-
-            # Conservative spatial matching: require approximate proximity
-            if abs(cx - x) > 2.0 or abs(cy - y) > 1.5:
-                continue
-
-            # Pedestrian detection can override if geometry is compatible
-            if any(tok in label for tok in pedestrian_tokens):
-                if score >= self.pedestrian_detection_score_threshold and x <= self.pedestrian_intrusion_distance_m and abs(y) <= self.pedestrian_intrusion_lateral_threshold_m:
-                    return ObstacleType.PEDESTRIAN
-
-            # Vehicle detection can strengthen vehicle hypothesis but should not flip static
-            if any(tok in label for tok in vehicle_tokens):
-                if score >= self.follow_vehicle_detection_score_threshold and z >= 0.3 and base_type != ObstacleType.STATIC_OBSTACLE:
-                    return ObstacleType.VEHICLE
-
-        # No strong auxiliary evidence — return the geometry-first classification
         return base_type
 
     def select_forward_vehicle_on_path(self):
@@ -601,28 +600,37 @@ class BehaviorNode(Node):
         return lead_x - ego_front_offset - desired_gap
 
     def detect_pedestrian_intrusion(self):
-        # camera detection 기반 강화
-        if self.detection_valid and self.has_pedestrian_detection() and self.obstacle_valid:
-            for obs_x, obs_y, obs_z in self.obstacle_points:
-                if obs_x <= 0.0 or obs_x > self.pedestrian_intrusion_distance_m:
-                    continue
-                if abs(obs_y) > self.pedestrian_intrusion_lateral_threshold_m:
-                    continue
-                dist = math.sqrt(obs_x * obs_x + obs_y * obs_y + obs_z * obs_z)
-                return True, dist
+        self.pedestrian_detection_warning = False
 
-        # fallback: lidar z 휴리스틱
+        if not self.obstacle_valid:
+            if self.detection_valid and self.has_pedestrian_detection():
+                self.pedestrian_detection_warning = True
+            return False, 99.0, 'NONE'
+
+        closest_dist = 99.0
+        search_distance = max(self.pedestrian_intrusion_distance_m, self.pedestrian_stop_distance_m)
         for obs_x, obs_y, obs_z in self.obstacle_points:
-            if obs_x <= 0.0 or obs_x > self.pedestrian_intrusion_distance_m:
+            if obs_x <= 0.0 or obs_x > search_distance:
                 continue
             if abs(obs_y) > self.pedestrian_intrusion_lateral_threshold_m:
                 continue
-            if obs_z < 0.3 or obs_z > 1.8:
-                dist = math.sqrt(obs_x * obs_x + obs_y * obs_y + obs_z * obs_z)
-                if dist < self.pedestrian_intrusion_distance_m:
-                    return True, dist
+            dist = math.sqrt(obs_x * obs_x + obs_y * obs_y + obs_z * obs_z)
+            if dist < closest_dist:
+                closest_dist = dist
 
-        return False, 99.0
+        if not (self.detection_valid and self.has_pedestrian_detection()):
+            return False, 99.0, 'NONE'
+
+        if closest_dist == 99.0:
+            self.pedestrian_detection_warning = True
+            return False, 99.0, 'WARNING_ONLY'
+
+        if closest_dist <= self.pedestrian_emergency_distance_m:
+            return True, closest_dist, 'EMERGENCY_STOP'
+        if closest_dist <= self.pedestrian_stop_distance_m:
+            return True, closest_dist, 'STOP'
+
+        return False, 99.0, 'NONE'
 
     def detect_cutin_intrusion(self):
         threshold = self.cutin_lateral_velocity_threshold_mps
@@ -661,9 +669,8 @@ class BehaviorNode(Node):
         best_dist = 99.0
         best_x = 99.0
         best_y = 0.0
-        best_idx = None
 
-        for idx, (obs_x, obs_y, obs_z) in enumerate(self.obstacle_points):
+        for obs_x, obs_y, obs_z in self.obstacle_points:
             if obs_x <= 0.0 or obs_x > self.static_obstacle_track_distance_m:
                 continue
             if abs(obs_y) > self.obstacle_corridor_half_width_m:
@@ -678,16 +685,29 @@ class BehaviorNode(Node):
                 best_dist = dist
                 best_x = obs_x
                 best_y = obs_y
-                best_idx = idx
 
-        return best_dist, best_x, best_y, best_idx
+        return best_dist, best_x, best_y
 
-    def should_commit_avoidance(self):
-        if self.tracked_static_id is None:
-            self.static_seen_count = 0
-            return False
-        self.static_seen_count += 1
-        return self.static_seen_count >= self.static_obstacle_commit_count
+    def update_static_obstacle_tracking(self, static_dist, static_x, static_y):
+        if static_dist >= self.static_obstacle_track_distance_m:
+            if not self.avoidance_committed:
+                self.static_seen_count = 0
+                self.last_static_obstacle_x = None
+                self.last_static_obstacle_y = None
+            return
+
+        if self.last_static_obstacle_x is None or self.last_static_obstacle_y is None:
+            self.static_seen_count = 1
+        else:
+            delta = math.sqrt((static_x - self.last_static_obstacle_x) ** 2 + (static_y - self.last_static_obstacle_y) ** 2)
+            if delta <= self.static_track_match_distance_m:
+                self.static_seen_count += 1
+            else:
+                self.static_seen_count = 1
+
+        self.last_static_obstacle_x = static_x
+        self.last_static_obstacle_y = static_y
+        self.avoidance_committed = self.static_seen_count >= self.static_obstacle_commit_count
 
     def should_finish_return(self):
         self.return_finish_count += 1
@@ -709,21 +729,25 @@ class BehaviorNode(Node):
         drivable_min_y = min(y_values)
         drivable_max_y = max(y_values)
 
-        left_target_y = drivable_min_y
-        if abs(left_target_y) < self.lane_change_max_lateral_distance_m:
-            if not self._is_merge_target_lane_safe(left_target_y):
-                left_possible = False
-                left_blocked = True
-        else:
-            left_possible = False
+        route_target = self.choose_target_from_route()
+        base_target_y = route_target[2] if route_target is not None else self.target_y
 
-        right_target_y = drivable_max_y
-        if abs(right_target_y) < self.lane_change_max_lateral_distance_m:
-            if not self._is_merge_target_lane_safe(right_target_y):
-                right_possible = False
-                right_blocked = True
-        else:
+        left_target_y = float(base_target_y + self.lane_change_lateral_offset_m)
+        right_target_y = float(base_target_y - self.lane_change_lateral_offset_m)
+        self.left_target_y_debug = left_target_y
+        self.right_target_y_debug = right_target_y
+
+        if left_target_y < drivable_min_y or left_target_y > drivable_max_y or abs(left_target_y) > self.lane_change_max_lateral_distance_m:
+            left_possible = False
+        elif not self._is_merge_target_lane_safe(left_target_y):
+            left_possible = False
+            left_blocked = True
+
+        if right_target_y < drivable_min_y or right_target_y > drivable_max_y or abs(right_target_y) > self.lane_change_max_lateral_distance_m:
             right_possible = False
+        elif not self._is_merge_target_lane_safe(right_target_y):
+            right_possible = False
+            right_blocked = True
 
         return left_possible, right_possible, left_blocked, right_blocked
 
@@ -743,18 +767,23 @@ class BehaviorNode(Node):
         return True
 
     def compute_lane_change_target(self, direction):
-        if not self.drivable_area_points:
-            return self.target_y
+        base_target = self.choose_target_from_route()
+        base_y = base_target[2] if base_target is not None else self.target_y
 
-        y_values = [y for _, y in self.drivable_area_points]
         if direction == 'LEFT':
-            target_y = min(y_values)
+            target_y = base_y + self.lane_change_lateral_offset_m
         elif direction == 'RIGHT':
-            target_y = max(y_values)
+            target_y = base_y - self.lane_change_lateral_offset_m
         else:
-            return self.target_y
+            return float(self.target_y)
 
-        target_y = max(-self.lane_change_lateral_offset_m, min(self.lane_change_lateral_offset_m, target_y))
+        if self.drivable_area_points:
+            y_values = [y for _, y in self.drivable_area_points]
+            drivable_min_y = min(y_values)
+            drivable_max_y = max(y_values)
+            target_y = max(drivable_min_y, min(drivable_max_y, target_y))
+
+        target_y = max(-self.lane_change_max_lateral_distance_m, min(self.lane_change_max_lateral_distance_m, target_y))
         return float(target_y)
 
     # =========================
@@ -767,13 +796,13 @@ class BehaviorNode(Node):
             return self.compute_nominal_speed(self.target_y)
 
         if lead_vehicle_distance <= self.follow_vehicle_min_distance_m:
-            return 0.5
+            return self.follow_vehicle_min_speed_mps
 
         gap = self.compute_gap_to_lead_vehicle(lead_vehicle_x, current_speed)
         if gap > 2.0:
             return self.compute_nominal_speed(self.target_y)
         if gap < -1.0:
-            return 0.5
+            return self.follow_vehicle_min_speed_mps
 
         t = max(0.0, min(1.0, (gap + 1.0) / 3.0))
         nominal = self.compute_nominal_speed(self.target_y)
@@ -792,45 +821,67 @@ class BehaviorNode(Node):
     # 상태 결정
     # =========================
     def decide_next_state(self, now, current_speed):
-        self.pedestrian_intrusion_detected, self.pedestrian_intrusion_distance = self.detect_pedestrian_intrusion()
-        self.cutin_intrusion_detected, self.cutin_intrusion_distance = self.detect_cutin_intrusion()
+        self.pedestrian_intrusion_detected, self.pedestrian_intrusion_distance, self.pedestrian_intrusion_severity = self.detect_pedestrian_intrusion()
+        if self.enable_cutin_detection:
+            self.cutin_intrusion_detected, self.cutin_intrusion_distance = self.detect_cutin_intrusion()
+        else:
+            self.cutin_intrusion_detected, self.cutin_intrusion_distance = False, 99.0
 
-        if self.pedestrian_intrusion_detected or self.cutin_intrusion_detected:
-            return BehaviorState.EMERGENCY_STOP, 'intrusion_detected'
-
-        # lane만 있으면 lane keeping 가능
+        # 1) lane valid first
         if not self.lane_valid:
             return BehaviorState.STOP, 'lane_unavailable'
 
-        if self.tl_valid and self.traffic_light_state in ('RED', 'YELLOW'):
+        # 2) pedestrian emergency
+        if self.pedestrian_intrusion_detected and self.pedestrian_intrusion_severity == 'EMERGENCY_STOP':
+            return BehaviorState.EMERGENCY_STOP, 'pedestrian_emergency_stop'
+
+        # 3) pedestrian stop
+        if self.pedestrian_intrusion_detected and self.pedestrian_intrusion_severity == 'STOP':
+            return BehaviorState.STOP, 'pedestrian_stop'
+
+        # 4) emergency obstacle band
+        if self.obstacle_valid and self.obstacle_distance < self.emergency_stop_distance_m:
+            return BehaviorState.EMERGENCY_STOP, 'obstacle_too_close'
+
+        # 5) near obstacle stop band
+        if self.obstacle_valid and self.obstacle_distance < self.near_obstacle_stop_distance_m:
+            return BehaviorState.STOP, 'near_obstacle_stop_band'
+
+        # 6) traffic light
+        if self.enable_traffic_light and self.tl_valid and self.traffic_light_state in ('RED', 'YELLOW'):
             queue_lead_dist, _, _ = self.detect_queue_lead_vehicle()
             if queue_lead_dist < self.red_light_queue_lookahead_m:
                 return BehaviorState.STOP, 'red_light_queue_vehicle'
             return BehaviorState.STOP, f'traffic_light_{self.traffic_light_state.lower()}'
 
-        if self.stopline_hold_active and self.stopline_hold_until and now < self.stopline_hold_until:
+        if self.enable_stopline and self.stopline_hold_active and self.stopline_hold_until and now < self.stopline_hold_until:
             return BehaviorState.STOP, 'stopline_hold_active'
 
-        if self.obstacle_valid and self.obstacle_distance < self.emergency_stop_distance_m:
-            return BehaviorState.EMERGENCY_STOP, 'obstacle_too_close'
+        # 7) cut-in (optional)
+        if self.enable_cutin_detection and self.cutin_intrusion_detected:
+            return BehaviorState.EMERGENCY_STOP, 'cutin_intrusion_detected'
 
+        # 8) return-to-lane keep
         if self.current_state == BehaviorState.RETURN_TO_LANE:
+            if not self.enable_lane_change:
+                return BehaviorState.STOP, 'lane_change_disabled'
             if self.should_finish_return():
                 self.avoidance_committed = False
-                self.tracked_static_id = None
+                self.static_seen_count = 0
+                self.last_static_obstacle_x = None
+                self.last_static_obstacle_y = None
                 self.return_finish_count = 0
                 return BehaviorState.LANE_KEEPING, 'return_to_lane_complete'
             return BehaviorState.RETURN_TO_LANE, 'returning_to_lane'
 
+        # 9) follow vehicle
         lead_dist, _, lead_y = self.select_forward_vehicle_on_path()
-        follow_confident = self.obstacle_valid and self.speed_valid
-        if self.detection_valid:
-            follow_confident = follow_confident and self.has_vehicle_detection()
-
-        if self.follow_vehicle_min_distance_m <= lead_dist <= self.follow_vehicle_max_distance_m and abs(lead_y) <= self.follow_vehicle_lane_threshold_m:
-            if follow_confident:
+        if self.near_obstacle_stop_distance_m <= lead_dist <= self.follow_vehicle_max_distance_m and abs(lead_y) <= self.follow_vehicle_lane_threshold_m:
+            if self.obstacle_valid and self.speed_valid:
                 self.lead_vehicle_lost_count = 0
-                return BehaviorState.FOLLOW_VEHICLE, 'lead_vehicle_detected'
+                if self.detection_valid and self.has_vehicle_detection():
+                    return BehaviorState.FOLLOW_VEHICLE, 'lead_vehicle_detected_camera_boost'
+                return BehaviorState.FOLLOW_VEHICLE, 'lead_vehicle_detected_lidar_only'
 
         self.lead_vehicle_lost_count += 1
         if self.lead_vehicle_lost_count <= self.follow_vehicle_lost_count_max and self.current_state == BehaviorState.FOLLOW_VEHICLE:
@@ -839,44 +890,55 @@ class BehaviorNode(Node):
 
         self.lead_vehicle_lost_count = min(self.lead_vehicle_lost_count, self.follow_vehicle_lost_count_max + 1)
 
-        # lane + drivable이면 lane change 판단 가능
-        if self.obstacle_valid and self.drivable_valid:
+        # 10) lane blocked is obstacle-only (independent from drivable validity)
+        main_lane_blocked = False
+        if self.obstacle_valid:
             main_lane_blocked = self.is_lane_blocked(self.lane_change_preparation_distance_m)
+        self.main_lane_blocked = main_lane_blocked
+
+        # 11) lane blocked and lane change disabled -> immediate STOP
+        if main_lane_blocked and not self.enable_lane_change:
+            return BehaviorState.STOP, 'lane_blocked_lane_change_disabled'
+
+        # 12) lane blocked and lane change enabled
+        if main_lane_blocked and self.enable_lane_change:
+            if not self.drivable_valid:
+                return BehaviorState.STOP, 'lane_blocked_drivable_unavailable'
+
             left_possible, right_possible, _, _ = self.evaluate_lane_change_options()
 
-            if main_lane_blocked:
-                static_dist, _, _, static_idx = self.select_blocking_static_obstacle()
-                if static_dist < self.static_obstacle_track_distance_m:
-                    if not self.avoidance_committed:
-                        self.tracked_static_id = static_idx
-                    if self.should_commit_avoidance():
-                        self.avoidance_committed = True
+            static_dist, static_x, static_y = self.select_blocking_static_obstacle()
+            self.update_static_obstacle_tracking(static_dist, static_x, static_y)
 
-                if self.avoidance_committed and self.tracked_static_id is not None:
-                    if left_possible:
-                        if self.current_state in (BehaviorState.LANE_KEEPING, BehaviorState.STOP):
-                            return BehaviorState.PREPARE_LANE_CHANGE_LEFT, 'static_blocked_left_available'
-                        if self.current_state == BehaviorState.PREPARE_LANE_CHANGE_LEFT:
-                            return BehaviorState.LANE_CHANGE_LEFT, 'prepare_left_done'
-                        if self.current_state == BehaviorState.LANE_CHANGE_LEFT:
-                            if self._is_lane_change_complete():
-                                self.lane_change_target_direction = 'LEFT'
-                                return BehaviorState.RETURN_TO_LANE, 'lane_change_left_complete'
-                            return BehaviorState.LANE_CHANGE_LEFT, 'lane_changing_left'
+            # avoidance commit before lane-change execution
+            if not self.avoidance_committed:
+                if self.stop_while_avoidance_not_committed:
+                    return BehaviorState.STOP, 'lane_blocked_waiting_avoidance_commit'
+                return BehaviorState.LANE_KEEPING, 'lane_blocked_creep'
 
-                    if right_possible:
-                        if self.current_state in (BehaviorState.LANE_KEEPING, BehaviorState.STOP):
-                            return BehaviorState.PREPARE_LANE_CHANGE_RIGHT, 'static_blocked_right_available'
-                        if self.current_state == BehaviorState.PREPARE_LANE_CHANGE_RIGHT:
-                            return BehaviorState.LANE_CHANGE_RIGHT, 'prepare_right_done'
-                        if self.current_state == BehaviorState.LANE_CHANGE_RIGHT:
-                            if self._is_lane_change_complete():
-                                self.lane_change_target_direction = 'RIGHT'
-                                return BehaviorState.RETURN_TO_LANE, 'lane_change_right_complete'
-                            return BehaviorState.LANE_CHANGE_RIGHT, 'lane_changing_right'
+            if left_possible:
+                if self.current_state in (BehaviorState.LANE_KEEPING, BehaviorState.STOP):
+                    return BehaviorState.PREPARE_LANE_CHANGE_LEFT, 'static_blocked_left_available'
+                if self.current_state == BehaviorState.PREPARE_LANE_CHANGE_LEFT:
+                    return BehaviorState.LANE_CHANGE_LEFT, 'prepare_left_done'
+                if self.current_state == BehaviorState.LANE_CHANGE_LEFT:
+                    if self._is_lane_change_complete():
+                        return BehaviorState.RETURN_TO_LANE, 'lane_change_left_complete'
+                    return BehaviorState.LANE_CHANGE_LEFT, 'lane_changing_left'
 
-                    return BehaviorState.STOP, 'avoidance_no_option'
+            if right_possible:
+                if self.current_state in (BehaviorState.LANE_KEEPING, BehaviorState.STOP):
+                    return BehaviorState.PREPARE_LANE_CHANGE_RIGHT, 'static_blocked_right_available'
+                if self.current_state == BehaviorState.PREPARE_LANE_CHANGE_RIGHT:
+                    return BehaviorState.LANE_CHANGE_RIGHT, 'prepare_right_done'
+                if self.current_state == BehaviorState.LANE_CHANGE_RIGHT:
+                    if self._is_lane_change_complete():
+                        return BehaviorState.RETURN_TO_LANE, 'lane_change_right_complete'
+                    return BehaviorState.LANE_CHANGE_RIGHT, 'lane_changing_right'
 
+            return BehaviorState.STOP, 'avoidance_no_option'
+
+        # 12) default cruise
         return BehaviorState.LANE_KEEPING, 'cruise'
 
     def detect_queue_lead_vehicle(self):
@@ -969,14 +1031,14 @@ class BehaviorNode(Node):
             if target is None:
                 return 0.0, 0.0, False
             _, target_x, target_y = target
-            return target_x, target_y - 0.3, False
+            return target_x, target_y + 0.3, False
 
         if state == BehaviorState.PREPARE_LANE_CHANGE_RIGHT:
             target = self.choose_target_from_route()
             if target is None:
                 return 0.0, 0.0, False
             _, target_x, target_y = target
-            return target_x, target_y + 0.3, False
+            return target_x, target_y - 0.3, False
 
         if state == BehaviorState.LANE_CHANGE_LEFT:
             if self.lane_change_start_time is None:
@@ -1019,6 +1081,7 @@ class BehaviorNode(Node):
     # =========================
     def periodic_update(self):
         now = monotonic()
+        self.stopline_mode = 'ENABLED' if self.enable_stopline else 'DISABLED'
 
         # 1) stale 검사
         lane_stale = (now - self.last_lane_update) > self.lane_timeout_s
@@ -1029,13 +1092,13 @@ class BehaviorNode(Node):
         drivable_stale = (now - self.last_drivable_update) > self.drivable_timeout_s
 
         # 2) 입력별 유효성 요약
-        self.lane_valid = (not lane_stale) and bool(self.lane_points)
-        self.obstacle_valid = (not obstacle_stale) and bool(self.obstacle_points)
-        self.drivable_valid = (not drivable_stale) and bool(self.drivable_area_points)
-        self.tl_valid = not tl_stale
-        self.speed_valid = not speed_stale
+        self.lane_valid = self.received_lane and (not lane_stale) and bool(self.lane_points)
+        self.obstacle_valid = self.received_obstacle and (not obstacle_stale) and bool(self.obstacle_points)
+        self.drivable_valid = self.received_drivable and (not drivable_stale) and bool(self.drivable_area_points)
+        self.tl_valid = self.received_traffic_light and (not tl_stale)
+        self.speed_valid = self.received_speed and (not speed_stale)
         # split detection liveliness vs presence
-        self.detection_topic_alive = (not detection_stale)
+        self.detection_topic_alive = self.received_detection and (not detection_stale)
         self.detections_present = len(self.latest_detections) > 0
         self.detection_valid = self.detection_topic_alive
 
@@ -1065,11 +1128,16 @@ class BehaviorNode(Node):
             self.obstacle_distance, self.obstacle_x, self.obstacle_y = 99.0, 99.0, 0.0
             self.lead_vehicle_distance, self.lead_vehicle_x, self.lead_vehicle_y = 99.0, 99.0, 0.0
 
-        left_poss, right_poss, _, _ = self.evaluate_lane_change_options()
-        self.left_lane_possible = left_poss
-        self.right_lane_possible = right_poss
+        if self.enable_lane_change and self.drivable_valid:
+            left_poss, right_poss, _, _ = self.evaluate_lane_change_options()
+            self.left_lane_possible = left_poss
+            self.right_lane_possible = right_poss
+        else:
+            self.left_lane_possible = False
+            self.right_lane_possible = False
 
         # 5) next state 결정
+        prev_state = self.current_state
         next_state, reason = self.decide_next_state(now, self.current_speed_mps)
 
         if next_state not in (BehaviorState.LANE_CHANGE_LEFT, BehaviorState.LANE_CHANGE_RIGHT):
@@ -1088,7 +1156,17 @@ class BehaviorNode(Node):
 
         # 7) target smoothing
         alpha = max(0.0, min(1.0, self.target_smoothing_alpha))
-        if self.filtered_target_x is None or self.filtered_target_y is None:
+        was_stop_state = prev_state in (BehaviorState.STOP, BehaviorState.EMERGENCY_STOP)
+        is_stop_state = next_state in (BehaviorState.STOP, BehaviorState.EMERGENCY_STOP)
+
+        if is_stop_state:
+            self.filtered_target_x = 0.0
+            self.filtered_target_y = 0.0
+        elif was_stop_state:
+            # Reinitialize target filter when leaving STOP to avoid sudden jump from stale 0 target.
+            self.filtered_target_x = target_x
+            self.filtered_target_y = target_y
+        elif self.filtered_target_x is None or self.filtered_target_y is None:
             self.filtered_target_x = target_x
             self.filtered_target_y = target_y
         else:
@@ -1101,6 +1179,10 @@ class BehaviorNode(Node):
         # 8) desired speed 계산
         if next_state in (BehaviorState.STOP, BehaviorState.EMERGENCY_STOP):
             raw_desired_speed = 0.0
+            self.filtered_desired_speed = 0.0
+            self.desired_speed = 0.0
+            self.target_x = 0.0
+            self.target_y = 0.0
         elif next_state == BehaviorState.FOLLOW_VEHICLE:
             if self.speed_valid:
                 raw_desired_speed = self.compute_follow_speed(self.lead_vehicle_x, self.lead_vehicle_distance, self.current_speed_mps)
@@ -1116,13 +1198,21 @@ class BehaviorNode(Node):
         else:
             raw_desired_speed = self.compute_nominal_speed(local_y)
 
-        # 9) speed smoothing
-        speed_alpha = 0.10
-        self.filtered_desired_speed = ((1.0 - speed_alpha) * self.filtered_desired_speed) + (speed_alpha * raw_desired_speed)
+        if reason == 'lane_blocked_creep':
+            raw_desired_speed = min(raw_desired_speed, self.creep_speed_mps)
 
-        self.target_x = local_x
-        self.target_y = local_y
-        self.desired_speed = float(self.filtered_desired_speed)
+        raw_desired_speed = max(0.0, min(self.max_desired_speed_mps, raw_desired_speed))
+
+        # 9) speed smoothing
+        if next_state not in (BehaviorState.STOP, BehaviorState.EMERGENCY_STOP):
+            speed_alpha = 0.10
+            self.filtered_desired_speed = ((1.0 - speed_alpha) * self.filtered_desired_speed) + (speed_alpha * raw_desired_speed)
+            self.filtered_desired_speed = max(0.0, min(self.max_desired_speed_mps, self.filtered_desired_speed))
+            self.desired_speed = float(self.filtered_desired_speed)
+            self.target_x = local_x
+            self.target_y = local_y
+
+        self.desired_speed = max(0.0, min(self.max_desired_speed_mps, self.desired_speed))
 
         if self.current_state.value != self.last_state_log or self.debug_reason != self.last_reason_log:
             self.last_state_log = self.current_state.value
@@ -1162,6 +1252,7 @@ class BehaviorNode(Node):
 
     # =========================
     # A* 로컬 회피
+    # Future extension: currently not used in main behavior flow
     # =========================
     def world_to_grid(self, x, y, resolution, y_half_width, x_cells, y_cells):
         gx = int(round(float(x) / resolution))
@@ -1296,22 +1387,36 @@ class BehaviorNode(Node):
         debug_msg.data = (
             f'state={self.current_state.value} | '
             f'reason={self.debug_reason} | '
-            f'obs={self.obstacle_distance:.2f}m | '
-            f'lead_vehicle={self.lead_vehicle_distance:.2f}m | '
-            f'lead_vehicle_x={self.lead_vehicle_x:.2f}m | '
-            f'current_speed={self.current_speed_mps:.2f}mps | '
-            f'lane_blocked={self.is_lane_blocked() if self.obstacle_valid else False} | '
-            f'left_lc_possible={self.left_lane_possible} | '
-            f'right_lc_possible={self.right_lane_possible} | '
-            f'fusion_mode={self.fusion_mode} | '
+            f'desired_speed={self.desired_speed:.2f}mps | '
+            f'target=({self.target_x:.2f},{self.target_y:.2f}) | '
+            f'lane_valid={self.lane_valid} | '
+            f'obstacle_valid={self.obstacle_valid} | '
             f'drivable_valid={self.drivable_valid} | '
             f'speed_valid={self.speed_valid} | '
             f'detection_topic_alive={self.detection_topic_alive} | '
             f'detections_present={self.detections_present} | '
-            f'detection_valid={self.detection_valid} | '
             f'degraded_mode={self.degraded_mode} | '
-            f'desired_speed={self.desired_speed:.2f}mps | '
-            f'target=({self.target_x:.2f},{self.target_y:.2f})'
+            f'fusion_mode={self.fusion_mode} | '
+            f'obstacle_distance={self.obstacle_distance:.2f}m | '
+            f'main_lane_blocked={self.main_lane_blocked} | '
+            f'near_obstacle_stop_distance_m={self.near_obstacle_stop_distance_m:.2f} | '
+            f'emergency_stop_distance_m={self.emergency_stop_distance_m:.2f} | '
+            f'lane_change_enabled={self.enable_lane_change} | '
+            f'cutin_enabled={self.enable_cutin_detection} | '
+            f'cutin_intrusion_detected={self.cutin_intrusion_detected} | '
+            f'traffic_light_enabled={self.enable_traffic_light} | '
+            f'tl_valid={self.tl_valid} | '
+            f'traffic_light_state={self.traffic_light_state} | '
+            f'stopline_mode={self.stopline_mode} | '
+            f'max_desired_speed_mps={self.max_desired_speed_mps:.2f} | '
+            f'speed_topic={self.speed_topic} | '
+            f'left_lc_possible={self.left_lane_possible} | '
+            f'right_lc_possible={self.right_lane_possible} | '
+            f'left_target_y={self.left_target_y_debug:.2f} | '
+            f'right_target_y={self.right_target_y_debug:.2f} | '
+            f'lead_vehicle_distance={self.lead_vehicle_distance:.2f}m | '
+            f'ped_intrusion={self.pedestrian_intrusion_severity} | '
+            f'ped_warn={self.pedestrian_detection_warning}'
         )
         self.debug_pub.publish(debug_msg)
 
