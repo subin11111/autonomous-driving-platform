@@ -374,9 +374,20 @@ def ros_spin(opt, ros_args):
 
     rclpy.init(args=ros_args)
     node = Yolopv2Node()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            node.destroy_node()
+        except Exception:
+            pass
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception:
+            pass
 
 
 def main(args=None):

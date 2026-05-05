@@ -212,6 +212,60 @@ def mask_to_ground_points(
     return points
 
 
+def detection_array_to_ground_points(
+    detection_msg,
+    projector: SimpleGroundProjector,
+    vehicle_class_ids: Sequence[int],
+    min_x: float = 0.0,
+    max_x: float = 40.0,
+    max_abs_y: float = 12.0,
+) -> List[Tuple[float, float, float]]:
+    """
+    Convert 2D detections into projected ground points using the bottom-center of each bbox.
+    """
+    allowed_class_ids = {int(cls_id) for cls_id in vehicle_class_ids}
+    points: List[Tuple[float, float, float]] = []
+
+    for detection in getattr(detection_msg, 'detections', []):
+        if not getattr(detection, 'results', None):
+            continue
+
+        class_id_raw = getattr(detection.results[0].hypothesis, 'class_id', '')
+        try:
+            class_id = int(class_id_raw)
+        except (TypeError, ValueError):
+            continue
+
+        if allowed_class_ids and class_id not in allowed_class_ids:
+            continue
+
+        bbox = getattr(detection, 'bbox', None)
+        if bbox is None:
+            continue
+
+        center = getattr(bbox, 'center', None)
+        if center is None:
+            continue
+
+        u = float(center.x)
+        v = float(center.y) + (float(getattr(bbox, 'size_y', 0.0)) * 0.5)
+
+        p = projector.pixel_to_ground(u, v)
+        if p is None:
+            continue
+
+        x, y, z = p
+        if x < min_x or x > max_x:
+            continue
+        if abs(y) > max_abs_y:
+            continue
+
+        points.append((x, y, z))
+
+    points.sort(key=lambda pt: (pt[0], abs(pt[1])))
+    return points
+
+
 def points_to_pointcloud2(
     points_xyz: Sequence[Tuple[float, float, float]],
     header,
@@ -269,8 +323,10 @@ def make_parser():
     parser.add_argument('--ros-node-name', default='mask_ground_projection_node', help='ROS2 node name')
     parser.add_argument('--input-lane-mask-topic', default='/yolopv2/lane_mask', help='input lane mask topic from perception node')
     parser.add_argument('--input-drivable-mask-topic', default='/yolopv2/drivable_mask', help='input drivable mask topic from perception node')
+    parser.add_argument('--input-detections-topic', default='/yolopv2/detections', help='input Detection2DArray topic from perception node')
     parser.add_argument('--output-lane-points-topic', default='/perception/real_world_lane_points', help='output lane PointCloud2 topic')
     parser.add_argument('--output-drivable-points-topic', default='/perception/real_world_drivable_points', help='output drivable PointCloud2 topic')
+    parser.add_argument('--output-vehicle-bbox-points-topic', default='/perception/real_world_vehicle_bbox_points', help='output projected vehicle bbox PointCloud2 topic')
     parser.add_argument('--output-rviz-topic', default='/masked_ray_ground', help='output PointCloud2 topic for RViz visualization')
     parser.add_argument('--output-frame-id', default='ego_vehicle', help='output frame_id override')
     parser.add_argument('--ros-queue-size', type=int, default=10, help='ROS2 pub/sub queue size')
@@ -287,6 +343,7 @@ def make_parser():
     parser.add_argument('--min-x', type=float, default=0.0, help='min x filter [m]')
     parser.add_argument('--max-x', type=float, default=40.0, help='max x filter [m]')
     parser.add_argument('--max-abs-y', type=float, default=12.0, help='max abs(y) filter [m]')
+    parser.add_argument('--vehicle-class-ids', nargs='*', type=int, default=[2, 3, 5, 7], help='vehicle class ids to project as 3D bbox points')
     return parser
 
 
@@ -296,6 +353,7 @@ def ros_spin(opt, ros_args):
         from cv_bridge import CvBridge
         from rclpy.node import Node
         from sensor_msgs.msg import Image, PointCloud2, PointField
+        from vision_msgs.msg import Detection2DArray  # type: ignore[import-not-found]
     except ImportError as exc:
         raise ImportError(
             'ROS2 python dependencies are missing. Install rclpy/sensor_msgs/cv_bridge and source your ROS2 environment.'
@@ -307,9 +365,11 @@ def ros_spin(opt, ros_args):
             self.bridge = CvBridge()
             self.projector = None
             self.frame_count = 0
+            self.vehicle_class_ids = set(int(cls_id) for cls_id in opt.vehicle_class_ids)
 
             self.lane_output_pub = self.create_publisher(PointCloud2, opt.output_lane_points_topic, opt.ros_queue_size)
             self.drivable_output_pub = self.create_publisher(PointCloud2, opt.output_drivable_points_topic, opt.ros_queue_size)
+            self.vehicle_bbox_output_pub = self.create_publisher(PointCloud2, opt.output_vehicle_bbox_points_topic, opt.ros_queue_size)
             self.rviz_output_pub = self.create_publisher(PointCloud2, opt.output_rviz_topic, opt.ros_queue_size)
 
             self.lane_sub = self.create_subscription(
@@ -324,10 +384,17 @@ def ros_spin(opt, ros_args):
                 self.drivable_mask_callback,
                 opt.ros_queue_size,
             )
+            self.detections_sub = self.create_subscription(
+                Detection2DArray,
+                opt.input_detections_topic,
+                self.detections_callback,
+                opt.ros_queue_size,
+            )
 
             self.get_logger().info(
                 f'mask projector started. lane_in={opt.input_lane_mask_topic}, drivable_in={opt.input_drivable_mask_topic}, '
-                f'lane_out={opt.output_lane_points_topic}, drivable_out={opt.output_drivable_points_topic}, '
+                f'detections_in={opt.input_detections_topic}, lane_out={opt.output_lane_points_topic}, '
+                f'drivable_out={opt.output_drivable_points_topic}, vehicle_bbox_out={opt.output_vehicle_bbox_points_topic}, '
                 f'rviz_out={opt.output_rviz_topic}, frame={opt.output_frame_id}'
             )
 
@@ -388,11 +455,37 @@ def ros_spin(opt, ros_args):
             if self.frame_count % 30 == 0:
                 self.get_logger().info(f'processed={self.frame_count}, source={tag}, points={len(points)}')
 
+        def _project_detections_and_publish(self, msg):
+            if self.projector is None:
+                return
+
+            points = detection_array_to_ground_points(
+                detection_msg=msg,
+                projector=self.projector,
+                vehicle_class_ids=self.vehicle_class_ids,
+                min_x=opt.min_x,
+                max_x=opt.max_x,
+                max_abs_y=opt.max_abs_y,
+            )
+
+            out_header = msg.header
+            if opt.output_frame_id:
+                out_header.frame_id = opt.output_frame_id
+
+            cloud = points_to_pointcloud2(points, out_header, PointCloud2, PointField)
+            self.vehicle_bbox_output_pub.publish(cloud)
+
+            if self.frame_count % 30 == 0 and points:
+                self.get_logger().info(f'processed={self.frame_count}, source=bbox, points={len(points)}')
+
         def lane_mask_callback(self, msg):
             self._project_and_publish(msg, self.lane_output_pub, 'lane')
 
         def drivable_mask_callback(self, msg):
             self._project_and_publish(msg, self.drivable_output_pub, 'drivable')
+
+        def detections_callback(self, msg):
+            self._project_detections_and_publish(msg)
 
     rclpy.init(args=ros_args)
     node = MaskGroundProjectionNode()

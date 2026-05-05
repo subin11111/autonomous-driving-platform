@@ -23,7 +23,7 @@ def generate_launch_description():
 
     pure_pursuit_node = Node(
         package='neuro_decision',
-        executable='pure_pursuit', # (executable name is 'pure_pursuit' but file is 'pure_pursuit_node.py')
+        executable='pure_pursuit_node', # 수정: 'pure_pursuit'에서 'pure_pursuit_node'로
         name='pure_pursuit_node',
         output='screen',
         parameters=[{
@@ -34,7 +34,7 @@ def generate_launch_description():
 
     speed_control_node = Node(
         package='neuro_decision',
-        executable='speed_control',
+        executable='speed_control_node', # 수정: 'speed_control'에서 'speed_control_node'로
         name='speed_control_node',
         output='screen'
     )
@@ -48,13 +48,35 @@ def generate_launch_description():
         parameters=[config_file] # ⭐ 방금 위에서 완성한 경로로 지시서 전달!
     )
 
+    # 5. Perception 노드: YOLO 기반 차선/도로 감지
+    perception_inference_node = Node(
+        package='yolopv2_ros',
+        executable='perception_inference_node',
+        name='perception_inference_node',
+        output='screen',
+        arguments=[]
+    )
+
+    # 6. Perception 노드: 2D 마스크를 3D 포인트로 변환
+    masked_ray_ground_projection_node = Node(
+        package='yolopv2_ros',
+        executable='masked_ray_ground_projection',
+        name='masked_ray_ground_projection_node',
+        output='screen',
+        arguments=[]
+    )
+
     return LaunchDescription([
         # 실행 모드를 sim으로 기본 설정 (나중에 real로 바꿀 수 있게 준비)
         DeclareLaunchArgument('mode', default_value='sim', description='실행 모드: sim 또는 real'),
         DeclareLaunchArgument('wheelbase', default_value='2.9', description='차량 휠베이스 [m]'),
         DeclareLaunchArgument('max_steering_angle_rad', default_value='1.22', description='최대 조향각 [rad]'),
         
-        # 준비된 4개의 노드를 일괄 가동!
+        # Perception 노드 먼저 시작 (다른 노드들의 입력 역할)
+        perception_inference_node,
+        masked_ray_ground_projection_node,
+        
+        # 제어 노드
         behavior_node,
         pure_pursuit_node,
         speed_control_node,

@@ -7,6 +7,7 @@
   <maintainer email="ju27586@konkuk.ac.kr">subin</maintainer>
   <license>TODO: License declaration</license>
 
+  <depend>ament_python</depend>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
