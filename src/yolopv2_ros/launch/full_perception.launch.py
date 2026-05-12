@@ -36,6 +36,7 @@ def generate_launch_description():
     fused_detections_topic = LaunchConfiguration('fused_detections_topic', default='/perception/fused_detections')
     publish_fused_image = LaunchConfiguration('publish_fused_image', default='true')
     publish_fused_detections = LaunchConfiguration('publish_fused_detections', default='true')
+    detections_topic = LaunchConfiguration('detections_topic', default='/yolopv2/detections')
 
     # Traffic light state adapter arguments
     enable_traffic_light_state = LaunchConfiguration('enable_traffic_light_state', default='true')
@@ -75,6 +76,7 @@ def generate_launch_description():
         DeclareLaunchArgument('fused_detections_topic', default_value='/perception/fused_detections'),
         DeclareLaunchArgument('publish_fused_image', default_value='true'),
         DeclareLaunchArgument('publish_fused_detections', default_value='true'),
+        DeclareLaunchArgument('detections_topic', default_value='/yolopv2/detections'),
         DeclareLaunchArgument('enable_traffic_light_state', default_value='true'),
         DeclareLaunchArgument('traffic_light_detections_topic', default_value='/yolo/traffic_light/detections'),
         DeclareLaunchArgument('traffic_light_state_topic', default_value='/traffic_light_state'),
@@ -125,7 +127,7 @@ def generate_launch_description():
                 '--ros-output-topic', '/yolopv2/result_image',
                 '--ros-drivable-mask-topic', '/yolopv2/drivable_mask',
                 '--ros-lane-mask-topic', '/yolopv2/lane_mask',
-                '--ros-detections-topic', '/yolopv2/vehicle_detections',
+                '--ros-detections-topic', detections_topic,
                 '--ros-node-name', 'yolopv2_node',
                 '--yolopv2-root', yolopv2_root,
                 '--weights', yolopv2_weights,
@@ -206,7 +208,7 @@ def generate_launch_description():
                 'image_topic': resized_image_topic,
                 'drivable_mask_topic': '/yolopv2/drivable_mask',
                 'lane_mask_topic': '/yolopv2/lane_mask',
-                'vehicle_detections_topic': '/yolopv2/vehicle_detections',
+                'vehicle_detections_topic': detections_topic,
                 'person_detections_topic': '/yolo/person/detections',
                 'traffic_light_detections_topic': traffic_light_detections_topic,
                 'fused_image_topic': fused_image_topic,

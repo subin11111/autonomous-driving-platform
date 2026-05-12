@@ -91,6 +91,43 @@ If `behavior_state` repeats STOP/LANE_KEEPING:
 - Confirm `lane_timeout_s` in the launch args.
 - Watch YOLOPv2 inference logs for processed frame rate.
 
+Graph inspection
+----------------
+
+The camera image does not connect directly to `behavior_node`. The expected chain is:
+
+```text
+/camera/image_raw
+  -> image_resize_node
+  -> /camera/image_1280x720
+  -> yolopv2_node
+  -> /yolopv2/lane_mask, /yolopv2/drivable_mask, /yolopv2/detections
+  -> mask_ground_projection_node
+  -> /perception/real_world_lane_points
+  -> behavior_node
+```
+
+Traffic lights follow a separate adapter path:
+
+```text
+/camera/image_1280x720
+  -> traffic_light_detector_node
+  -> /yolo/traffic_light/detections
+  -> traffic_light_state_node
+  -> /traffic_light_state
+  -> behavior_node
+```
+
+`rqt_graph` can hide or group nodes depending on its filter settings, and stale duplicate nodes can make the graph look odd. Use verbose topic info as the source of truth:
+
+```bash
+ros2 topic info /camera/image_1280x720 -v
+ros2 topic info /yolopv2/lane_mask -v
+ros2 topic info /perception/real_world_lane_points -v
+ros2 topic info /traffic_light_state -v
+ros2 topic info /cmd_vel -v
+```
+
 Traffic light state
 -------------------
 
