@@ -1,0 +1,12 @@
+mcu_serial_bridge:
+  ros__parameters:
+    port: /dev/ttyACM0
+    baudrate: 115200
+    cmd_topic: /cmd_vel
+    linear_deadband: 0.05
+    angular_deadband: 0.05
+    watchdog_timeout: 0.5
+    serial_timeout: 0.01
+    write_timeout: 0.01
+    send_center_command: true
+    mock_serial: false

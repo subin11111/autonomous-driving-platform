@@ -1,28 +1,35 @@
 .venv/
-__pycache__/
-*.pyc
-*.egg-info/
+
+# Colcon build artifacts
 build/
 install/
 log/
+
+# Python cache/build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
 .pytest_cache/
-.vscode/
-.idea/
+.mypy_cache/
+.ruff_cache/
 
-# Training artifacts
-runs/
-*/runs/
-
-# Model weights
-models/
-*/models/
-*.pt
-*.pth
-*.onnx
-
-# Datasets
-datasets/
-*/datasets/
+# ROS2 / colcon local artifacts inside packages
+src/*/build/
+src/*/install.log
+src/*/colcon_build.rc
+src/*/colcon_command_prefix_setup_py.sh
+src/*/colcon_command_prefix_setup_py.sh.env
+src/*/prefix_override/
 
 # OS/editor
 .DS_Store
+.vscode/
+.idea/
+
+# ML / dataset artifacts
+perception/lane_detection/runs/
+perception/lane_detection/datasets/
+*.pt
+*.onnx
+*.engine
