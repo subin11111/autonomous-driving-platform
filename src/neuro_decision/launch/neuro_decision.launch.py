@@ -3,6 +3,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+from launch.conditions import IfCondition
 
 def generate_launch_description():
     behavior_node = Node(
@@ -22,6 +23,12 @@ def generate_launch_description():
             'enable_stopline': ParameterValue(LaunchConfiguration('enable_stopline'), value_type=bool),
             'enable_cutin_detection': ParameterValue(LaunchConfiguration('enable_cutin_detection'), value_type=bool),
             'require_drivable_for_lane_keeping': ParameterValue(LaunchConfiguration('require_drivable_for_lane_keeping'), value_type=bool),
+            'lane_timeout_s': ParameterValue(LaunchConfiguration('lane_timeout_s'), value_type=float),
+            'drivable_timeout_s': ParameterValue(LaunchConfiguration('drivable_timeout_s'), value_type=float),
+            'obstacle_timeout_s': ParameterValue(LaunchConfiguration('obstacle_timeout_s'), value_type=float),
+            'traffic_light_timeout_s': ParameterValue(LaunchConfiguration('traffic_light_timeout_s'), value_type=float),
+            'speed_timeout_s': ParameterValue(LaunchConfiguration('speed_timeout_s'), value_type=float),
+            'detection_timeout_s': ParameterValue(LaunchConfiguration('detection_timeout_s'), value_type=float),
         }],
     )
 
@@ -36,6 +43,14 @@ def generate_launch_description():
         }],
     )
 
+    cmd_vel_adapter_node = Node(
+        package='neuro_decision',
+        executable='cmd_vel_adapter_node',
+        name='cmd_vel_adapter_node',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_cmd_vel_adapter')),
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('speed_topic', default_value='/vehicle/current_speed_mps', description='현재 차량 속도 토픽 (std_msgs/Float32, m/s)'),
         DeclareLaunchArgument('max_desired_speed_mps', default_value='1.40', description='목표 속도 상한 [m/s]'),
@@ -48,8 +63,16 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_stopline', default_value='false', description='정지선 판단 활성화 여부'),
         DeclareLaunchArgument('enable_cutin_detection', default_value='false', description='Cut-in 감지 활성화 여부'),
         DeclareLaunchArgument('require_drivable_for_lane_keeping', default_value='false', description='lane keeping에 drivable area 필수 여부'),
+        DeclareLaunchArgument('lane_timeout_s', default_value='0.5', description='차선 pointcloud stale timeout [s]'),
+        DeclareLaunchArgument('drivable_timeout_s', default_value='0.5', description='drivable pointcloud stale timeout [s]'),
+        DeclareLaunchArgument('obstacle_timeout_s', default_value='0.5', description='obstacle pointcloud stale timeout [s]'),
+        DeclareLaunchArgument('traffic_light_timeout_s', default_value='2.0', description='traffic light state stale timeout [s]'),
+        DeclareLaunchArgument('speed_timeout_s', default_value='1.0', description='vehicle speed stale timeout [s]'),
+        DeclareLaunchArgument('detection_timeout_s', default_value='0.7', description='camera detection stale timeout [s]'),
+        DeclareLaunchArgument('enable_cmd_vel_adapter', default_value='true', description='cmd_vel adapter 노드 실행 여부'),
         DeclareLaunchArgument('wheelbase', default_value='0.95', description='차량 휠베이스 [m]'),
         DeclareLaunchArgument('max_steering_angle_deg', default_value='20.0', description='최대 조향각 [deg]'),
         behavior_node,
         steering_command_node,
+        cmd_vel_adapter_node,
     ])

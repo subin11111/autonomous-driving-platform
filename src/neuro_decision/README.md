@@ -2,6 +2,21 @@
 
 자율주행 유아용 전동차를 위한 **판단(Decision) 및 조향(Steering) 모듈**입니다.
 
+## cmd_vel 어댑터 및 MCU 브리지 연결
+
+- `neuro_decision`은 MCU를 직접 제어하지 않습니다.
+- `behavior_node`, `steering_command_node` 출력은 `cmd_vel_adapter_node`가 받아 `/cmd_vel`(geometry_msgs/msg/Twist)로 변환합니다.
+- `vehicle_serial_bridge/mcu_serial_bridge`가 `/cmd_vel`을 받아 PySerial로 MCU 단일 문자 명령(`W/S/A/D/C/Space`)을 송신합니다.
+
+현재 MCU 제어는 이산 제어입니다.
+
+- `linear.x > 0` -> `W`
+- `linear.x < 0` -> `S`
+- `linear.x == 0` -> `Space`
+- `angular.z > 0` -> `A`
+- `angular.z < 0` -> `D`
+- `angular.z == 0` -> `C`
+
 | 노드 | 기능 | 입력 | 출력 |
 |------|------|------|------|
 | **behavior_node** | 상태 결정 + 속도/목표점 생성 | LiDAR, 카메라, 신호등, 속도 | 상태, 속도, 목표점, 디버그 정보 |

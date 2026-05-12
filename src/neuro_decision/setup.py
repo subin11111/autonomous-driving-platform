@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'behavior_node = neuro_decision.behavior_node:main',
             'steering_command_node = neuro_decision.steering_command_node:main',
+            'cmd_vel_adapter_node = neuro_decision.cmd_vel_adapter_node:main',
         ],
     },
 )

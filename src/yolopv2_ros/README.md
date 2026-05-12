@@ -9,7 +9,8 @@ This package integrates **multiple perception models** to provide comprehensive 
 1. **YOLOPv2**: Vehicle detection + Drivable area segmentation + Lane line segmentation
 2. **Ultralytics YOLO**: Pedestrian detection (person class)
 3. **Ultralytics YOLO**: Traffic light detection (traffic light class, bounding box only)
-4. **Fusion Visualizer**: Combines all perception results into a single debug image and fused detection list
+4. **Traffic Light State Adapter**: Converts traffic light detections into `/traffic_light_state` for behavior planning
+5. **Fusion Visualizer**: Combines all perception results into a single debug image and fused detection list
 
 The package is designed as a modular perception stack where each detection component is independent, yet can be fused together for comprehensive scene understanding.
 
@@ -18,6 +19,7 @@ The package is designed as a modular perception stack where each detection compo
 - **YOLOPv2 Node**: Detects vehicles, drivable areas, and lane lines from `/camera/image_raw`. Independent outputs.
 - **Pedestrian Detector**: Ultralytics YOLO pretrained model detecting COCO class `person`. Independent outputs.
 - **Traffic Light Detector**: Ultralytics YOLO pretrained model detecting COCO class `traffic light` (box only, no state classification). Independent outputs.
+- **Traffic Light State Adapter**: Subscribes to `/yolo/traffic_light/detections` and publishes `/traffic_light_state` as `std_msgs/msg/String`.
 - **Fusion Visualizer**: Subscribes to all detector outputs and publishes a combined debug image and fused detection list.
 
 Important notes
@@ -49,6 +51,10 @@ Traffic light node outputs:
 - `/yolo/traffic_light/detections` : `vision_msgs/msg/Detection2DArray`
 - `/yolo/traffic_light/result_image` : `sensor_msgs/msg/Image`
 
+Traffic light state adapter outputs:
+- `/traffic_light_state` : `std_msgs/msg/String` (`RED`, `YELLOW`, `GREEN`, or `UNKNOWN`)
+- `/traffic_light_state_debug` : `std_msgs/msg/String`
+
 Fusion visualizer outputs:
 - `/perception/fused_debug_image` : `sensor_msgs/msg/Image` (combined visualization)
 - `/perception/fused_detections` : `vision_msgs/msg/Detection2DArray` (fused detection list)
@@ -63,6 +69,45 @@ Each detector outputs Detection2DArray with normalized class_id:
 - **Traffic light detector**: `"traffic light"`
 
 The fused_detections combines all three and normalizes class_ids for downstream algorithms.
+
+Traffic Light Detection -> State
+--------------------------------
+
+`traffic_light_detector_node` publishes `/yolo/traffic_light/detections` as `vision_msgs/msg/Detection2DArray`.
+`traffic_light_state_node` converts those detections to `/traffic_light_state` as `std_msgs/msg/String`, which `behavior_node` subscribes to when `enable_traffic_light:=true`.
+
+The current `traffic_light_detector_node.py` uses the COCO `traffic light` class only. That means it detects the traffic light bounding box but does not directly classify red/yellow/green. With the default configuration, this adapter therefore publishes `UNKNOWN` for plain `"traffic light"` detections. If a future detector/model emits color class IDs such as `red`, `yellow`, `green`, `traffic_light_red`, or `green_light`, the adapter maps them to `RED`, `YELLOW`, and `GREEN`.
+
+Important safety notes:
+- Confirm whether your detector emits color classes or only the single `traffic light` class before driving.
+- If the class is only `traffic light`, color state remains `UNKNOWN` unless `use_roi_color_fallback:=true` is explicitly enabled.
+- ROI color fallback is a temporary heuristic helper, not a production-grade signal classifier. If the heuristic is uncertain, it returns `UNKNOWN`; it is intentionally conservative about GREEN.
+- `timeout_state` defaults to `UNKNOWN`, matching current `behavior_node` behavior where `UNKNOWN` is accepted but does not force a traffic-light stop. Set `timeout_state:=RED` only if you want fail-safe stopping on stale detections.
+- Before real driving, verify that `/traffic_light_state` publishes the expected `RED`, `YELLOW`, `GREEN`, or `UNKNOWN` values in the actual camera environment.
+- ROI fallback only runs when a traffic light bbox is present in `/yolo/traffic_light/detections`; empty detections keep the state at `UNKNOWN`.
+- In `behavior_node`, `RED` and `YELLOW` can stop the vehicle when `enable_traffic_light:=true`, while `GREEN` allows normal planning and `UNKNOWN` is accepted but does not force a traffic-light stop.
+- If `/perception/real_world_lane_points` is missing, stale, or empty, `behavior_node` stays in `STOP` or briefly enters `lane_reacquire_wait`.
+- Before connecting real hardware, run `vehicle_serial_bridge mcu_serial_bridge` with `mock_serial:=true` and verify `/cmd_vel` plus `/vehicle/mcu_tx`.
+
+Manual checks:
+
+```bash
+ros2 topic info /yolo/traffic_light/detections
+ros2 topic info /traffic_light_state
+ros2 topic echo /traffic_light_state
+ros2 topic echo /traffic_light_state_debug
+```
+
+ROI fallback verification example:
+
+```bash
+ros2 launch yolopv2_ros perception_planning_bridge.launch.py \
+  enable_traffic_light_state:=true \
+  use_roi_color_fallback:=true \
+  traffic_light_image_topic:=/camera/image_1280x720
+```
+
+The traffic light detector and ROI fallback must use the same image geometry. In the default launch files both use `/camera/image_1280x720`, so detection bbox coordinates and ROI crop pixels are aligned.
 
 Installation
 ------------
@@ -97,6 +142,28 @@ source install/setup.bash
 
 Usage
 -----
+
+### Perception -> Planning Bridge launch
+
+`perception_planning_bridge.launch.py`는 perception 출력을 planning 입력 토픽으로 연결하기 위한 launch입니다.
+
+- lane mask -> `/perception/real_world_lane_points` (PointCloud2)
+- drivable mask -> `/perception/real_world_drivable_points` (PointCloud2)
+- detections -> `/perception/closest_obstacle` (PointCloud2 via bbox projection)
+
+실행 예시:
+
+```bash
+ros2 launch yolopv2_ros perception_planning_bridge.launch.py
+```
+
+주의사항:
+
+- `traffic_light_state_node`가 `/yolo/traffic_light/detections`를 `/traffic_light_state`로 변환합니다.
+- 현재 기본 detector는 단일 `"traffic light"` bbox class만 제공하므로 기본 상태는 `UNKNOWN`입니다.
+- `/vehicle/current_speed_mps` publisher가 없는 환경에서는 테스트용으로만 `enable_speed_stub:=true`를 사용할 수 있습니다.
+- lane/drivable mask는 behavior_node가 직접 소비하지 않으며, PointCloud2 변환 경로(`masked_ray_ground_projection`)가 필요합니다.
+- `full_perception.launch.py`는 perception debug 중심이며 lane PointCloud2 projection을 실행하지 않습니다. `behavior_node`와 같이 검증하려면 `perception_planning_bridge.launch.py`를 사용하세요.
 
 ### Full perception pipeline (recommended)
 
@@ -133,6 +200,11 @@ ros2 run yolopv2_ros pedestrian_detector
 Traffic light detector only:
 ```bash
 ros2 run yolopv2_ros traffic_light_detector
+```
+
+Traffic light state adapter only:
+```bash
+ros2 run yolopv2_ros traffic_light_state
 ```
 
 Fusion visualizer only:
@@ -206,7 +278,8 @@ If your camera publishes a different resolution:
 
 - The traffic light detector only outputs bounding boxes.
 - Red/yellow/green state classification is NOT performed in this node.
-- Future extension: crop detections and apply HSV-based or classifier-based state detection.
+- `traffic_light_state_node` bridges detections to `/traffic_light_state`. With the default detector class `"traffic light"`, it publishes `UNKNOWN`.
+- Future extension: use a detector that emits color classes, or replace the temporary ROI HSV fallback with a validated classifier.
 
 ### Fusion visualizer parameters
 
@@ -366,6 +439,7 @@ yolopv2_ros perception_inference
 yolopv2_ros perception_inference_node
 yolopv2_ros pedestrian_detector
 yolopv2_ros traffic_light_detector
+yolopv2_ros traffic_light_state
 yolopv2_ros fusion_visualizer
 yolopv2_ros video_to_topic
 yolopv2_ros masked_ray_ground_projection

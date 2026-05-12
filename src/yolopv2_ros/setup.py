@@ -34,6 +34,7 @@ setup(
             'masked_ray_ground_projection = yolopv2_ros.masked_ray_ground_projection:main',
             'pedestrian_detector = yolopv2_ros.pedestrian_detector_node:main',
             'traffic_light_detector = yolopv2_ros.traffic_light_detector_node:main',
+            'traffic_light_state = yolopv2_ros.traffic_light_state_node:main',
             'fusion_visualizer = yolopv2_ros.fusion_visualizer_node:main',
         ],
     },

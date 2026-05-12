@@ -40,6 +40,15 @@ autonomous-driving-platform/
 colcon build --packages-select neuro_decision vehicle_serial_bridge yolopv2_ros
 source install/setup.bash
 
+## End-to-End Bringup Safety
+
+- `src/autonomous_bringup` contains the integrated bringup launch files.
+- Use `ros2 launch autonomous_bringup e2e_mock.launch.py mock_serial:=true` for normal perception -> planning -> `/cmd_vel` -> mock MCU checks.
+- `e2e_hardware_safe.launch.py` is for real MCU preparation only. It defaults to `enable_vehicle_bridge:=false` and `mock_serial:=true`.
+- Real serial requires the explicit confirmation arguments documented in `src/autonomous_bringup/README.md`.
+- Before connecting hardware, run `scripts/e2e_preflight_check.sh` and follow `docs/hardware_preflight_checklist.md`.
+- CPU-only YOLOPv2 inference may require `lane_timeout_s:=3.0` or `4.0` for bench inspection; reduce the timeout again after improving inference FPS for real driving.
+
 ## Artifact Policy
 
 - build/, install/, log/는 colcon 생성 산출물이며 Git에 포함하지 않습니다.

@@ -247,8 +247,14 @@ def detection_array_to_ground_points(
         if center is None:
             continue
 
-        u = float(center.x)
-        v = float(center.y) + (float(getattr(bbox, 'size_y', 0.0)) * 0.5)
+        position = getattr(center, 'position', None)
+        if position is not None:
+            u = float(getattr(position, 'x', 0.0))
+            center_y = float(getattr(position, 'y', 0.0))
+        else:
+            u = float(getattr(center, 'x', 0.0))
+            center_y = float(getattr(center, 'y', 0.0))
+        v = center_y + (float(getattr(bbox, 'size_y', 0.0)) * 0.5)
 
         p = projector.pixel_to_ground(u, v)
         if p is None:
