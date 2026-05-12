@@ -14,7 +14,7 @@ class SteeringCommandNode(Node):
         # ===== 기본 파라미터 =====
         # 실제 차량 휠베이스는 실측 후 launch parameter로 override 가능하다.
         self.declare_parameter('wheelbase', 0.95)
-        self.declare_parameter('max_steering_angle_rad', 0.75)
+        self.declare_parameter('max_steering_angle_deg', 20.0)
         self.declare_parameter('control_period_s', 0.05)
         self.declare_parameter('command_timeout_s', 0.5)
         self.declare_parameter('steer_ema_alpha', 0.18)
@@ -47,7 +47,8 @@ class SteeringCommandNode(Node):
 
         # ===== 파라미터 로드 =====
         self.wheelbase = float(self.get_parameter('wheelbase').value)
-        self.max_steering_angle_rad = float(self.get_parameter('max_steering_angle_rad').value)
+        self.max_steering_angle_deg = abs(float(self.get_parameter('max_steering_angle_deg').value))
+        self.max_steering_angle_rad_internal = math.radians(self.max_steering_angle_deg)
         self.control_period_s = float(self.get_parameter('control_period_s').value)
         self.command_timeout_s = float(self.get_parameter('command_timeout_s').value)
         self.steer_ema_alpha = float(self.get_parameter('steer_ema_alpha').value)
@@ -111,7 +112,9 @@ class SteeringCommandNode(Node):
         self.behavior_state_sub = self.create_subscription(String, '/behavior_state', self.behavior_state_callback, 10)
 
         # ===== 출력 발행 =====
-        self.desired_steering_angle_pub = self.create_publisher(Float64, '/desired_steering_angle_rad', 10)
+        self.steering_angle_output_topic = '/desired_steering_angle_deg'
+        self.steering_angle_output_unit = 'degree'
+        self.desired_steering_angle_pub = self.create_publisher(Float64, self.steering_angle_output_topic, 10)
         self.desired_steering_normalized_pub = self.create_publisher(Float64, '/desired_steering_normalized', 10)
         self.debug_pub = self.create_publisher(String, '/steering_command_debug_text', 10)
 
@@ -125,6 +128,7 @@ class SteeringCommandNode(Node):
         self.latest_raw_steering_angle_rad = 0.0
         self.latest_raw_steer_normalized = 0.0
         self.filtered_steering_angle_rad = 0.0
+        self.desired_steering_angle_deg = 0.0
         self.filtered_steer_normalized = 0.0
         self.steer_filter_initialized = False
         self.state_changed = False
@@ -154,6 +158,7 @@ class SteeringCommandNode(Node):
             self.steer_filter_initialized = False
             if self.behavior_state in ('STOP', 'EMERGENCY_STOP'):
                 self.filtered_steering_angle_rad = 0.0
+                self.desired_steering_angle_deg = 0.0
                 self.filtered_steer_normalized = 0.0
                 self.latest_raw_steering_angle_rad = 0.0
                 self.latest_raw_steer_normalized = 0.0
@@ -179,9 +184,23 @@ class SteeringCommandNode(Node):
         return math.atan2(2.0 * self.wheelbase * clamped_target_y, l_d_square)
 
     def compute_steer_ratio_from_angle(self, steering_angle_rad):
-        if self.max_steering_angle_rad <= 1e-6:
+        if self.max_steering_angle_rad_internal <= 1e-6:
             return 0.0
-        return steering_angle_rad / self.max_steering_angle_rad
+        return steering_angle_rad / self.max_steering_angle_rad_internal
+
+    def update_degree_output_from_filtered_normalized(self):
+        if self.max_steering_angle_deg <= 1e-6:
+            self.filtered_steer_normalized = 0.0
+            self.filtered_steering_angle_rad = 0.0
+            self.desired_steering_angle_deg = 0.0
+            return
+
+        self.filtered_steer_normalized = max(-1.0, min(1.0, self.filtered_steer_normalized))
+        desired_deg = self.filtered_steer_normalized * self.max_steering_angle_deg
+        desired_deg = max(-self.max_steering_angle_deg, min(self.max_steering_angle_deg, desired_deg))
+        self.desired_steering_angle_deg = float(desired_deg)
+        self.filtered_steer_normalized = max(-1.0, min(1.0, self.desired_steering_angle_deg / self.max_steering_angle_deg))
+        self.filtered_steering_angle_rad = math.radians(self.desired_steering_angle_deg)
 
     def publish_steering_commands(self):
         now = monotonic()
@@ -201,6 +220,7 @@ class SteeringCommandNode(Node):
             self.latest_raw_steering_angle_rad = 0.0
             self.latest_raw_steer_normalized = 0.0
             self.filtered_steering_angle_rad = 0.0
+            self.desired_steering_angle_deg = 0.0
             self.filtered_steer_normalized = 0.0
             self.steer_filter_initialized = False
             self.profile_state = 'SAFE_ZERO'
@@ -215,6 +235,7 @@ class SteeringCommandNode(Node):
             self.latest_raw_steering_angle_rad = 0.0
             self.latest_raw_steer_normalized = 0.0
             self.filtered_steering_angle_rad = 0.0
+            self.desired_steering_angle_deg = 0.0
             self.filtered_steer_normalized = 0.0
             self.steer_filter_initialized = False
             self.profile_state = 'SAFE_ZERO'
@@ -241,12 +262,11 @@ class SteeringCommandNode(Node):
                 delta = max(-delta_per_cycle, min(delta_per_cycle, delta))
                 self.filtered_steer_normalized = self.filtered_steer_normalized + delta
 
-            self.filtered_steer_normalized = max(-1.0, min(1.0, self.filtered_steer_normalized))
-            self.filtered_steering_angle_rad = self.filtered_steer_normalized * self.max_steering_angle_rad
+            self.update_degree_output_from_filtered_normalized()
             status = 'STEER_ACTIVE'
 
         angle_msg = Float64()
-        angle_msg.data = float(self.filtered_steering_angle_rad)
+        angle_msg.data = float(self.desired_steering_angle_deg)
         self.desired_steering_angle_pub.publish(angle_msg)
 
         normalized_msg = Float64()
@@ -263,6 +283,7 @@ class SteeringCommandNode(Node):
             f'target_y_clamped={self.target_y_clamped} | '
             f'raw_steering_angle_rad={self.latest_raw_steering_angle_rad:.4f} | '
             f'filtered_steering_angle_rad={self.filtered_steering_angle_rad:.4f} | '
+            f'desired_steering_angle_deg={self.desired_steering_angle_deg:.4f} | '
             f'normalized_steer={self.filtered_steer_normalized:.4f} | '
             f'steering_gain={steering_gain:.3f} | '
             f'delta_per_cycle={delta_per_cycle:.4f} | '
@@ -271,7 +292,10 @@ class SteeringCommandNode(Node):
             f'state_stale={state_stale} | '
             f'unknown_state={self.unknown_state} | '
             f'safe_zero_reason={self.safe_zero_reason} | '
-            f'max_steering_angle_rad={self.max_steering_angle_rad:.3f}'
+            f'max_steering_angle_deg={self.max_steering_angle_deg:.3f} | '
+            f'max_steering_angle_rad_internal={self.max_steering_angle_rad_internal:.4f} | '
+            f'output_topic={self.steering_angle_output_topic} | '
+            f'output_topic_unit={self.steering_angle_output_unit}'
         )
         self.debug_pub.publish(debug_msg)
 

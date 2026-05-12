@@ -3,7 +3,7 @@
 <package format="3">
   <name>neuro_decision</name>
   <version>0.0.0</version>
-  <description>Decision and control package for autonomous driving in ROS 2/CARLA.</description>
+  <description>Decision and steering package for low-speed autonomous driving in ROS 2.</description>
   <maintainer email="junghun@todo.todo">junghun</maintainer>
   <license>Apache-2.0</license>
 
@@ -12,8 +12,8 @@
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>std_msgs</depend>
-  <depend>carla_msgs</depend>
   <depend>sensor_msgs_py</depend>
+  <depend>vision_msgs</depend>
   <depend>robot_localization</depend>
 
   <test_depend>ament_copyright</test_depend>

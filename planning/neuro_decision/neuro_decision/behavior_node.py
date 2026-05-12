@@ -4,6 +4,7 @@ from time import monotonic
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Float64, Float32, String
@@ -66,11 +67,15 @@ class BehaviorNode(Node):
         self.declare_parameter('detection_timeout_s', 0.7)
         self.declare_parameter('drivable_timeout_s', 0.5)
         self.declare_parameter('drivable_area_topic', '/perception/real_world_drivable_points')
+        self.declare_parameter('lane_reacquire_stable_count', 3)
 
         # ===== 안전 거리 임계값 =====
         self.declare_parameter('caution_distance_m', 20.0)
         self.declare_parameter('emergency_stop_distance_m', 0.8)
         self.declare_parameter('near_obstacle_stop_distance_m', 1.8)
+        self.declare_parameter('obstacle_stop_enter_count', 2)
+        self.declare_parameter('obstacle_stop_release_count', 3)
+        self.declare_parameter('obstacle_stop_release_distance_m', 2.2)
         # lane blocked 판단 거리 (내부 기준으로 사용)
         self.declare_parameter('lane_blocked_distance_m', 3.0)
         # drivable area가 끊겨도 lane keeping을 허용할지 여부 (실차 테스트용 옵션)
@@ -90,7 +95,7 @@ class BehaviorNode(Node):
         self.declare_parameter('follow_vehicle_min_speed_mps', 0.25)
         self.declare_parameter('follow_vehicle_lost_count_max', 5)
         self.declare_parameter('follow_vehicle_detection_score_threshold', 0.35)
-        self.declare_parameter('speed_topic', '/carla/ego_vehicle/speedometer')
+        self.declare_parameter('speed_topic', '/vehicle/current_speed_mps')
 
         # ===== Lane change 파라미터 =====
         self.declare_parameter('lane_change_min_safe_distance_m', 8.0)
@@ -177,10 +182,14 @@ class BehaviorNode(Node):
         self.detection_timeout_s = float(self.get_parameter('detection_timeout_s').value)
         self.drivable_timeout_s = float(self.get_parameter('drivable_timeout_s').value)
         self.drivable_area_topic = str(self.get_parameter('drivable_area_topic').value)
+        self.lane_reacquire_stable_count = max(1, int(self.get_parameter('lane_reacquire_stable_count').value))
 
         self.caution_distance_m = float(self.get_parameter('caution_distance_m').value)
         self.emergency_stop_distance_m = float(self.get_parameter('emergency_stop_distance_m').value)
         self.near_obstacle_stop_distance_m = float(self.get_parameter('near_obstacle_stop_distance_m').value)
+        self.obstacle_stop_enter_count = max(1, int(self.get_parameter('obstacle_stop_enter_count').value))
+        self.obstacle_stop_release_count = max(1, int(self.get_parameter('obstacle_stop_release_count').value))
+        self.obstacle_stop_release_distance_m = float(self.get_parameter('obstacle_stop_release_distance_m').value)
         self.lane_blocked_distance_m = float(self.get_parameter('lane_blocked_distance_m').value)
         self.require_drivable_for_lane_keeping = bool(self.get_parameter('require_drivable_for_lane_keeping').value)
 
@@ -255,19 +264,19 @@ class BehaviorNode(Node):
             PointCloud2,
             '/perception/real_world_lane_points',
             self.lane_callback,
-            10,
+            qos_profile_sensor_data,
         )
         self.obs_sub = self.create_subscription(
             PointCloud2,
             '/perception/closest_obstacle',
             self.obstacle_callback,
-            10,
+            qos_profile_sensor_data,
         )
         self.drivable_area_sub = self.create_subscription(
             PointCloud2,
             self.drivable_area_topic,
             self.drivable_area_callback,
-            10,
+            qos_profile_sensor_data,
         )
         self.tl_sub = self.create_subscription(
             String,
@@ -316,6 +325,9 @@ class BehaviorNode(Node):
         self.obstacle_distance = 99.0
         self.obstacle_x = 99.0
         self.obstacle_y = 0.0
+        self.obstacle_stop_count = 0
+        self.obstacle_clear_count = 0
+        self.obstacle_stop_latched = False
 
         self.lead_vehicle_distance = 99.0
         self.lead_vehicle_x = 99.0
@@ -359,6 +371,7 @@ class BehaviorNode(Node):
         self.desired_speed = 0.0
 
         self.input_stale = True
+        self.lane_reacquire_count = 0
         self.main_lane_blocked = False
         self.left_lane_possible = False
         self.right_lane_possible = False
@@ -1069,6 +1082,30 @@ class BehaviorNode(Node):
             return self.desired_speed_gentle_turn_mps
         return self.desired_speed_sharp_turn_mps
 
+    def update_obstacle_stop_hysteresis(self):
+        if not self.obstacle_valid:
+            self.obstacle_stop_count = 0
+            self.obstacle_clear_count = 0
+            return
+
+        if self.obstacle_distance < self.near_obstacle_stop_distance_m:
+            self.obstacle_stop_count += 1
+            self.obstacle_clear_count = 0
+            if self.obstacle_stop_count >= self.obstacle_stop_enter_count:
+                self.obstacle_stop_latched = True
+            return
+
+        self.obstacle_stop_count = 0
+        if self.obstacle_distance > self.obstacle_stop_release_distance_m:
+            if self.obstacle_stop_latched:
+                self.obstacle_clear_count += 1
+                if self.obstacle_clear_count >= self.obstacle_stop_release_count:
+                    self.obstacle_stop_latched = False
+                    self.obstacle_clear_count = 0
+            return
+
+        self.obstacle_clear_count = 0
+
     # =========================
     # 상태 결정
     # =========================
@@ -1087,12 +1124,21 @@ class BehaviorNode(Node):
         if self.obstacle_valid and self.obstacle_distance < self.emergency_stop_distance_m:
             return BehaviorState.EMERGENCY_STOP, 'obstacle_too_close'
 
-        if self.obstacle_valid and self.obstacle_distance < self.near_obstacle_stop_distance_m:
-            return BehaviorState.STOP, 'near_obstacle_stop_band'
+        if self.obstacle_stop_latched:
+            if not self.obstacle_valid:
+                return BehaviorState.STOP, 'obstacle_stop_latched_obstacle_unavailable'
+            return BehaviorState.STOP, 'obstacle_stop_latched'
 
         # 3) lane and drivable validity
         if not self.lane_valid:
             return BehaviorState.STOP, 'lane_unavailable'
+
+        if (
+            self.current_state == BehaviorState.STOP
+            and self.debug_reason in ('lane_unavailable', 'lane_reacquire_wait')
+            and self.lane_reacquire_count < self.lane_reacquire_stable_count
+        ):
+            return BehaviorState.STOP, 'lane_reacquire_wait'
 
         # drivable_valid 정책: require_drivable_for_lane_keeping에 따라 동작
         if not self.drivable_valid:
@@ -1415,6 +1461,13 @@ class BehaviorNode(Node):
 
         # lane 없으면 안전 정지 우선
         self.input_stale = not self.lane_valid
+        if self.lane_valid:
+            self.lane_reacquire_count = min(
+                self.lane_reacquire_count + 1,
+                self.lane_reacquire_stable_count,
+            )
+        else:
+            self.lane_reacquire_count = 0
 
         # 3) fusion summary 계산
         self.fusion_mode = self.compute_fusion_mode()
@@ -1438,6 +1491,7 @@ class BehaviorNode(Node):
         else:
             self.obstacle_distance, self.obstacle_x, self.obstacle_y = 99.0, 99.0, 0.0
             self.lead_vehicle_distance, self.lead_vehicle_x, self.lead_vehicle_y = 99.0, 99.0, 0.0
+        self.update_obstacle_stop_hysteresis()
 
         if self.enable_lane_change and self.drivable_valid:
             left_poss, right_poss, _, _ = self.evaluate_lane_change_options()
@@ -1603,6 +1657,7 @@ class BehaviorNode(Node):
             f'desired_speed={self.desired_speed:.2f}mps | '
             f'target=({self.target_x:.2f},{self.target_y:.2f}) | '
             f'lane_valid={self.lane_valid} | '
+            f'lane_reacquire_count={self.lane_reacquire_count} | '
             f'obstacle_valid={self.obstacle_valid} | '
             f'drivable_valid={self.drivable_valid} | '
             f'car_count={self.detection_class_summary.get("car_count",0)} | '
@@ -1620,6 +1675,9 @@ class BehaviorNode(Node):
             f'left_lane_possible={self.left_lane_possible} | '
             f'right_lane_possible={self.right_lane_possible} | '
             f'obstacle_distance={self.obstacle_distance:.2f}m | '
+            f'obstacle_stop_latched={self.obstacle_stop_latched} | '
+            f'obstacle_stop_count={self.obstacle_stop_count} | '
+            f'obstacle_clear_count={self.obstacle_clear_count} | '
             f'speed_valid={self.speed_valid} | '
             f'detection_topic_alive={self.detection_topic_alive} | '
             f'detections_present={self.detections_present} | '

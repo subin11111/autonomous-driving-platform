@@ -7,9 +7,9 @@ setup(
     version='0.0.0',
     packages=find_packages(exclude=['test']),
     data_files=[
-        ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/neuro_decision.launch.py']),
+        ('share/ament_index/resource_index/packages', [f'resource/{package_name}']),
+        (f'share/{package_name}', ['package.xml']),
+        (f'share/{package_name}/launch', ['launch/neuro_decision.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -18,11 +18,6 @@ setup(
     description='Neuro decision nodes',
     license='TODO: License declaration',
     tests_require=['pytest'],
-    data_files=[
-        ('share/ament_index/resource_index/packages', [f'resource/{package_name}']),
-        (f'share/{package_name}', ['package.xml']),
-        (f'share/{package_name}/launch', ['launch/neuro_decision.launch.py']),
-    ],
     entry_points={
         'console_scripts': [
             'behavior_node = neuro_decision.behavior_node:main',
