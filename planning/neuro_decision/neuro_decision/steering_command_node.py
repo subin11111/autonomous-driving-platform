@@ -12,10 +12,11 @@ class SteeringCommandNode(Node):
         super().__init__('steering_command_node')
 
         # ===== 기본 파라미터 =====
-        self.declare_parameter('wheelbase', 2.9)
+        # 실제 차량 휠베이스는 실측 후 launch parameter로 override 가능하다.
+        self.declare_parameter('wheelbase', 0.95)
         self.declare_parameter('max_steering_angle_rad', 0.75)
         self.declare_parameter('control_period_s', 0.05)
-        self.declare_parameter('command_timeout_s', 1.0)
+        self.declare_parameter('command_timeout_s', 0.5)
         self.declare_parameter('steer_ema_alpha', 0.18)
         self.declare_parameter('target_y_clamp_m', 1.40)
 
@@ -39,6 +40,10 @@ class SteeringCommandNode(Node):
         self.declare_parameter('rtl_steering_gain', 0.52)
         self.declare_parameter('rtl_steer_delta_per_cycle', 0.040)
         self.declare_parameter('rtl_steer_ema_alpha', 0.18)
+
+        self.declare_parameter('avoid_steering_gain', 0.58)
+        self.declare_parameter('avoid_steer_delta_per_cycle', 0.040)
+        self.declare_parameter('avoid_steer_ema_alpha', 0.18)
 
         # ===== 파라미터 로드 =====
         self.wheelbase = float(self.get_parameter('wheelbase').value)
@@ -84,6 +89,11 @@ class SteeringCommandNode(Node):
                 'delta_per_cycle': float(self.get_parameter('rtl_steer_delta_per_cycle').value),
                 'ema_alpha': float(self.get_parameter('rtl_steer_ema_alpha').value),
             },
+            'AVOID_OBSTACLE': {
+                'gain': float(self.get_parameter('avoid_steering_gain').value),
+                'delta_per_cycle': float(self.get_parameter('avoid_steer_delta_per_cycle').value),
+                'ema_alpha': float(self.get_parameter('avoid_steer_ema_alpha').value),
+            },
             'STOP': {
                 'gain': 0.0,
                 'delta_per_cycle': 0.0,
@@ -110,6 +120,7 @@ class SteeringCommandNode(Node):
         self.target_y = 0.0
         self.behavior_state = 'STOP'
         self.last_behavior_state = 'STOP'
+        self.unknown_state = False
 
         self.latest_raw_steering_angle_rad = 0.0
         self.latest_raw_steer_normalized = 0.0
@@ -117,6 +128,9 @@ class SteeringCommandNode(Node):
         self.filtered_steer_normalized = 0.0
         self.steer_filter_initialized = False
         self.state_changed = False
+        self.target_y_clamped = False
+        self.profile_state = 'UNKNOWN'
+        self.safe_zero_reason = 'none'
 
         now = monotonic()
         self.last_target_update = now
@@ -151,16 +165,18 @@ class SteeringCommandNode(Node):
     def get_steering_profile_for_state(self):
         if self.behavior_state in self.steering_profiles:
             return self.steering_profiles[self.behavior_state]
-        return self.steering_profiles['LANE_KEEPING']
+        return None
 
     def compute_steering_angle_rad(self, target_x, target_y):
-        target_y = max(-self.target_y_clamp_m, min(self.target_y_clamp_m, float(target_y)))
-        l_d_square = (float(target_x) ** 2) + (target_y ** 2)
+        raw_target_y = float(target_y)
+        clamped_target_y = max(-self.target_y_clamp_m, min(self.target_y_clamp_m, raw_target_y))
+        self.target_y_clamped = abs(clamped_target_y - raw_target_y) > 1e-9
+        l_d_square = (float(target_x) ** 2) + (clamped_target_y ** 2)
 
         if l_d_square <= 1e-6:
             return 0.0
 
-        return math.atan2(2.0 * self.wheelbase * target_y, l_d_square)
+        return math.atan2(2.0 * self.wheelbase * clamped_target_y, l_d_square)
 
     def compute_steer_ratio_from_angle(self, steering_angle_rad):
         if self.max_steering_angle_rad <= 1e-6:
@@ -171,11 +187,15 @@ class SteeringCommandNode(Node):
         now = monotonic()
         target_stale = (now - self.last_target_update) > self.command_timeout_s
         state_stale = (now - self.last_state_update) > self.command_timeout_s
+        self.unknown_state = self.behavior_state not in self.steering_profiles
 
         profile = self.get_steering_profile_for_state()
-        steering_gain = float(profile['gain'])
-        delta_per_cycle = float(profile['delta_per_cycle'])
-        ema_alpha = max(0.0, min(1.0, float(profile['ema_alpha'])))
+        self.profile_state = self.behavior_state if profile is not None else 'UNKNOWN'
+        steering_gain = float(profile['gain']) if profile is not None else 0.0
+        delta_per_cycle = float(profile['delta_per_cycle']) if profile is not None else 0.0
+        ema_alpha = max(0.0, min(1.0, float(profile['ema_alpha']))) if profile is not None else 0.0
+        self.safe_zero_reason = 'none'
+        self.target_y_clamped = False
 
         if target_stale or state_stale:
             self.latest_raw_steering_angle_rad = 0.0
@@ -183,11 +203,28 @@ class SteeringCommandNode(Node):
             self.filtered_steering_angle_rad = 0.0
             self.filtered_steer_normalized = 0.0
             self.steer_filter_initialized = False
+            self.profile_state = 'SAFE_ZERO'
+            if target_stale and state_stale:
+                self.safe_zero_reason = 'target_and_state_timeout'
+            elif target_stale:
+                self.safe_zero_reason = 'target_timeout'
+            else:
+                self.safe_zero_reason = 'state_timeout'
             status = 'SAFE_STEER_ZERO'
+        elif self.unknown_state:
+            self.latest_raw_steering_angle_rad = 0.0
+            self.latest_raw_steer_normalized = 0.0
+            self.filtered_steering_angle_rad = 0.0
+            self.filtered_steer_normalized = 0.0
+            self.steer_filter_initialized = False
+            self.profile_state = 'SAFE_ZERO'
+            self.safe_zero_reason = 'unknown_state'
+            status = 'UNKNOWN_STATE_SAFE_ZERO'
         else:
             if self.behavior_state in ('STOP', 'EMERGENCY_STOP'):
                 raw_steering_angle_rad = 0.0
                 raw_steer_normalized = 0.0
+                self.safe_zero_reason = 'stop_state' if self.behavior_state == 'STOP' else 'emergency_stop_state'
             else:
                 raw_steering_angle_rad = self.compute_steering_angle_rad(self.target_x, self.target_y)
                 raw_steer_normalized = self.compute_steer_ratio_from_angle(raw_steering_angle_rad)
@@ -219,9 +256,11 @@ class SteeringCommandNode(Node):
         debug_msg = String()
         debug_msg.data = (
             f'state={self.behavior_state} | '
+            f'profile_state={self.profile_state} | '
             f'status={status} | '
             f'target_x={self.target_x:.2f} | '
             f'target_y={self.target_y:.2f} | '
+            f'target_y_clamped={self.target_y_clamped} | '
             f'raw_steering_angle_rad={self.latest_raw_steering_angle_rad:.4f} | '
             f'filtered_steering_angle_rad={self.filtered_steering_angle_rad:.4f} | '
             f'normalized_steer={self.filtered_steer_normalized:.4f} | '
@@ -230,6 +269,8 @@ class SteeringCommandNode(Node):
             f'ema_alpha={ema_alpha:.3f} | '
             f'target_stale={target_stale} | '
             f'state_stale={state_stale} | '
+            f'unknown_state={self.unknown_state} | '
+            f'safe_zero_reason={self.safe_zero_reason} | '
             f'max_steering_angle_rad={self.max_steering_angle_rad:.3f}'
         )
         self.debug_pub.publish(debug_msg)
