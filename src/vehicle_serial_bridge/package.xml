@@ -3,12 +3,11 @@
 <package format="3">
   <name>vehicle_serial_bridge</name>
   <version>0.0.0</version>
-  <description>ROS2 serial bridge from cmd_vel and estop topics to single-character MCU commands.</description>
+  <description>ROS2 serial bridge from vehicle control topics to MCU CMD line protocol.</description>
   <maintainer email="ju27586@konkuk.ac.kr">subin</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
-  <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>
 
   <exec_depend>python3-serial</exec_depend>

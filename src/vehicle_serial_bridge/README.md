@@ -2,13 +2,11 @@
 
 ROS2 상위 제어 토픽을 Arduino/MCU 시리얼 명령으로 변환하는 브리지 패키지입니다.
 
-기본 모드는 `numeric_direct`입니다. 이 모드는 `/desired_speed`, `/desired_steering_angle_deg`, `/behavior_state`를 직접 구독해서 실제 속도값과 조향각을 Arduino에 전송합니다.
+이 브리지는 `/desired_speed`, `/desired_steering_angle_deg`, `/behavior_state`를 직접 구독해서 실제 속도값과 조향각을 Arduino에 전송합니다.
 
-## Input Modes
+## Interface
 
-### numeric_direct
-
-기본 모드이며 새 Arduino 펌웨어용입니다.
+새 Arduino 펌웨어용 `CMD` line protocol만 지원합니다.
 
 - Subscribe: `/desired_speed` (`std_msgs/msg/Float64`, m/s)
 - Subscribe: `/desired_steering_angle_deg` (`std_msgs/msg/Float64`, degree)
@@ -17,29 +15,11 @@ ROS2 상위 제어 토픽을 Arduino/MCU 시리얼 명령으로 변환하는 브
 - Publish: `/vehicle/mcu_status` (`std_msgs/msg/String`)
 - Publish: `/vehicle/mcu_tx` (`std_msgs/msg/String`)
 
-`numeric_direct` 모드에서는 `/cmd_vel`과 `cmd_vel_adapter_node`가 필요 없습니다. `mcu_serial_bridge`가 판단/조향 노드의 공식 토픽을 직접 구독하므로 실제 조향각이 Arduino까지 보존됩니다. `cmd_vel_adapter_node`는 `legacy_cmd_vel` 모드 또는 과거 WASD 테스트용으로 남겨둡니다.
-
-### legacy_cmd_vel
-
-과거 Arduino 펌웨어용 호환 모드입니다.
-
-- Subscribe: `/cmd_vel` (`geometry_msgs/msg/Twist`)
-- Subscribe: `/vehicle/estop` (`std_msgs/msg/Bool`)
-- Publish: `/vehicle/mcu_status` (`std_msgs/msg/String`)
-- Publish: `/vehicle/mcu_tx` (`std_msgs/msg/String`)
-
-`legacy_cmd_vel` 모드에서는 기존처럼 `/cmd_vel`을 단일 문자로 변환합니다.
-
-- `linear.x > linear_deadband` -> `W`
-- `linear.x < -linear_deadband` -> `S`
-- `abs(linear.x) <= linear_deadband` -> `Space`
-- `angular.z > angular_deadband` -> `A`
-- `angular.z < -angular_deadband` -> `D`
-- `abs(angular.z) <= angular_deadband` -> `C` (`send_center_command=true`)
+`/cmd_vel`은 사용하지 않습니다. `mcu_serial_bridge`가 판단/조향 노드의 공식 토픽을 직접 구독하므로 실제 조향각이 Arduino까지 보존됩니다.
 
 ## Serial Protocol
 
-`numeric_direct` 모드의 Arduino 입력은 줄 단위 newline 종료 문자열입니다. Arduino는 `\n` 기준으로 한 줄씩 읽어 CSV 형태로 파싱해야 합니다.
+Arduino 입력은 줄 단위 newline 종료 문자열입니다. Arduino는 `\n` 기준으로 한 줄씩 읽어 CSV 형태로 파싱해야 합니다.
 
 일반 주행 명령:
 
@@ -73,11 +53,9 @@ ESTOP\n
 - `steering_deg`: 소수점 2자리
 - `behavior_state`: 공백 없는 uppercase 문자열
 - 기본 조향 범위: `-20.0` ~ `+20.0` degree
-- 기본 속도 범위: `0.0` ~ `1.40` m/s (`allow_reverse=false`)
+- 기본 속도 범위: `-1.40` ~ `1.40` m/s (`allow_reverse=true`)
 
 ## Safety Behavior
-
-`numeric_direct` 모드:
 
 - `behavior_state`가 `stop_states` 안에 있으면 `STOP\n`을 주기적으로 전송합니다.
 - STOP은 Arduino에서 모터 정지 + 조향 중립으로 처리해야 합니다.
@@ -87,48 +65,27 @@ ESTOP\n
 - speed, steering, state 입력 중 하나라도 timeout이면 `STOP\n`을 전송합니다.
 - 노드 종료 시 `STOP\n`을 전송하고 serial을 닫습니다.
 - `speed_mps`는 `max_abs_speed_mps`로 clamp합니다.
-- `allow_reverse=false`이면 음수 speed는 `0.000`으로 clamp합니다.
+- `allow_reverse=true`가 기본값이므로 음수 speed를 후진 명령으로 전송합니다.
 - `steering_deg`는 `max_abs_steering_deg`로 clamp합니다.
-
-`legacy_cmd_vel` 모드:
-
-- E-stop true 수신 시 기존 방식대로 `Space`를 전송합니다.
-- E-stop 상태에서는 주행 명령을 무시합니다.
-- `watchdog_timeout` 동안 `/cmd_vel` 미수신 시 `Space`를 전송합니다.
-- 노드 시작/종료 시 `Space` 전송을 시도합니다.
 
 ## Parameters
 
-공통:
-
-- `input_mode`: `numeric_direct` 또는 `legacy_cmd_vel` (`numeric_direct`)
 - `port`: serial port (`/dev/ttyACM0`)
 - `baudrate`: serial baudrate (`115200`)
 - `mock_serial`: mock backend 사용 여부 (`false`)
-- `watchdog_timeout`: legacy `/cmd_vel` watchdog timeout (`0.5`)
 - `serial_timeout`: serial read timeout (`0.01`)
 - `write_timeout`: serial write timeout (`0.01`)
 - `command_publish_period_s`: numeric command publish period (`0.05`)
-
-`numeric_direct`:
-
 - `desired_speed_topic`: `/desired_speed`
 - `desired_steering_angle_deg_topic`: `/desired_steering_angle_deg`
 - `behavior_state_topic`: `/behavior_state`
 - `max_abs_speed_mps`: `1.40`
 - `max_abs_steering_deg`: `20.0`
-- `allow_reverse`: `false`
+- `allow_reverse`: `true`
 - `stop_states`: `['STOP', 'EMERGENCY_STOP', 'ESTOP', 'RED_LIGHT', 'OBSTACLE_STOP']`
 - `speed_input_timeout_s`: `0.5`
 - `steering_input_timeout_s`: `0.5`
 - `state_input_timeout_s`: `0.5`
-
-`legacy_cmd_vel`:
-
-- `cmd_topic`: `/cmd_vel`
-- `linear_deadband`: `0.05`
-- `angular_deadband`: `0.05`
-- `send_center_command`: `true`
 
 ## Build
 
@@ -157,7 +114,6 @@ Mock numeric test:
 
 ```bash
 ros2 run vehicle_serial_bridge mcu_serial_bridge --ros-args \
-  -p input_mode:=numeric_direct \
   -p mock_serial:=true
 ```
 
@@ -165,19 +121,10 @@ ros2 run vehicle_serial_bridge mcu_serial_bridge --ros-args \
 
 ```bash
 ros2 run vehicle_serial_bridge mcu_serial_bridge --ros-args \
-  -p input_mode:=numeric_direct \
   -p mock_serial:=false \
   -p port:=/dev/ttyACM0 \
   -p baudrate:=115200 \
   -p max_abs_steering_deg:=20.0
-```
-
-Legacy mode:
-
-```bash
-ros2 run vehicle_serial_bridge mcu_serial_bridge --ros-args \
-  -p input_mode:=legacy_cmd_vel \
-  -p mock_serial:=true
 ```
 
 Launch:
@@ -192,7 +139,6 @@ ros2 launch vehicle_serial_bridge mcu_serial_bridge.launch.py
 
 ```bash
 ros2 run vehicle_serial_bridge mcu_serial_bridge --ros-args \
-  -p input_mode:=numeric_direct \
   -p mock_serial:=true \
   -p max_abs_steering_deg:=20.0 \
   -p max_abs_speed_mps:=1.40
@@ -268,13 +214,12 @@ ESTOP
 
 - `desired_steering_angle_deg=30.0`, `max_abs_steering_deg=20.0` -> `20.00`으로 clamp
 - `desired_speed=2.0`, `max_abs_speed_mps=1.40` -> `1.400`으로 clamp
-- `allow_reverse=false`, `desired_speed=-0.5` -> `0.000`으로 clamp
 - `allow_reverse=true`, `desired_speed=-0.5` -> `-0.500` 전송
 - 입력 토픽 중 하나가 끊기면 `STOP` 전송
 
 ## Arduino Firmware Requirements
 
-이 저장소에는 Arduino 펌웨어 파일이 포함되어 있지 않습니다. 실제 차량에서 `numeric_direct` 모드를 사용하려면 Arduino 펌웨어가 아래 규칙을 구현해야 합니다.
+이 저장소에는 Arduino 펌웨어 파일이 포함되어 있지 않습니다. 실제 차량에서 사용하려면 Arduino 펌웨어가 아래 규칙을 구현해야 합니다.
 
 - Serial line을 `\n` 기준으로 읽습니다.
 - `CMD,<speed_mps>,<steering_deg>,<behavior_state>` 라인을 CSV로 파싱합니다.

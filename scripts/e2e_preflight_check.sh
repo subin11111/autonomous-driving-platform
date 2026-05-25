@@ -93,7 +93,7 @@ topic_info_check /traffic_light_state warn
 topic_info_check /behavior_state warn
 topic_info_check /desired_speed warn
 topic_info_check /desired_steering_normalized warn
-topic_info_check /cmd_vel fail
+topic_info_check /desired_steering_angle_deg fail
 topic_info_check /vehicle/mcu_tx warn
 
 echo
@@ -110,16 +110,24 @@ else
   fi
 fi
 
-cmd_vel_msg="$(timeout 5 ros2 topic echo /cmd_vel --once 2>/dev/null || true)"
-if [[ -z "$cmd_vel_msg" ]]; then
-  fail "/cmd_vel did not produce a sample"
+desired_speed_msg="$(timeout 5 ros2 topic echo /desired_speed --once 2>/dev/null || true)"
+if [[ -z "$desired_speed_msg" ]]; then
+  warn "/desired_speed did not produce a sample"
 else
-  echo "$cmd_vel_msg"
-  if grep -Eq "x: 0(\\.0+)?$" <<<"$cmd_vel_msg" && grep -Eq "z: 0(\\.0+)?$" <<<"$cmd_vel_msg"; then
-    warn "/cmd_vel sample appears to be zero"
+  echo "$desired_speed_msg"
+  if grep -Eq "data: 0(\\.0+)?$" <<<"$desired_speed_msg"; then
+    warn "/desired_speed sample appears to be zero"
   else
-    ok "/cmd_vel produced a non-zero-looking sample"
+    ok "/desired_speed produced a non-zero-looking sample"
   fi
+fi
+
+desired_steer_msg="$(timeout 5 ros2 topic echo /desired_steering_angle_deg --once 2>/dev/null || true)"
+if [[ -z "$desired_steer_msg" ]]; then
+  fail "/desired_steering_angle_deg did not produce a sample"
+else
+  echo "$desired_steer_msg"
+  ok "/desired_steering_angle_deg produced a sample"
 fi
 
 mcu_tx_msg="$(timeout 5 ros2 topic echo /vehicle/mcu_tx --once 2>/dev/null || true)"
@@ -140,10 +148,10 @@ fi
 
 echo
 echo "== topic hz =="
-if timeout 8 ros2 topic hz /cmd_vel; then
-  ok "/cmd_vel hz check completed"
+if timeout 8 ros2 topic hz /desired_steering_angle_deg; then
+  ok "/desired_steering_angle_deg hz check completed"
 else
-  fail "/cmd_vel hz check failed or timed out"
+  fail "/desired_steering_angle_deg hz check failed or timed out"
 fi
 
 if timeout 12 ros2 topic hz /perception/real_world_lane_points; then

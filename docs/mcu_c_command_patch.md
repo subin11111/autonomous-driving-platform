@@ -11,7 +11,8 @@ case 'C':
 
 주의사항:
 
-- 기존 W, S, A, D, Space 동작 유지
+- W, S, A, D, Space는 Arduino 단독 수동 테스트용으로만 유지
+- `mcu_serial_bridge`는 W/S/A/D/Space를 보내지 않고 `CMD,...`, `STOP`, `ESTOP` 라인만 전송
 - 전진/후진 기어 전환 시 기존 딜레이와 안전 로직 유지
 - 기어 전환 시 throttle 0 선행 로직 제거 금지
 - Space는 기존대로 throttle 0V, brake 0.5V, steering center 수행

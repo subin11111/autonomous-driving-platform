@@ -9,7 +9,7 @@ topics=(
   /behavior_state
   /desired_speed
   /desired_steering_normalized
-  /cmd_vel
+  /desired_steering_angle_deg
   /vehicle/mcu_tx
 )
 
@@ -22,7 +22,7 @@ done
 
 echo
 echo "== one-shot echo =="
-for topic in /behavior_state /cmd_vel /vehicle/mcu_tx /traffic_light_state; do
+for topic in /behavior_state /desired_speed /desired_steering_angle_deg /vehicle/mcu_tx /traffic_light_state; do
   echo
   echo "-- ${topic}"
   timeout 5 ros2 topic echo "${topic}" --once || true

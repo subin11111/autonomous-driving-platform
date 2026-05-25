@@ -1,7 +1,7 @@
 autonomous_bringup
 ==================
 
-Mock-safe launch files for checking the perception -> planning -> cmd_vel -> MCU bridge path.
+Mock-safe launch files for checking the perception -> planning -> desired control topics -> MCU bridge path.
 
 Mock E2E launch
 ---------------
@@ -64,7 +64,7 @@ ros2 topic info /traffic_light_state
 ros2 topic info /behavior_state
 ros2 topic info /desired_speed
 ros2 topic info /desired_steering_normalized
-ros2 topic info /cmd_vel
+ros2 topic info /desired_steering_angle_deg
 ros2 topic info /vehicle/mcu_tx
 ```
 
@@ -74,7 +74,7 @@ Watch for mock MCU commands:
 ros2 topic echo /vehicle/mcu_tx
 ```
 
-Expected values include `W`, `A`, `D`, `C`, and Space depending on `/cmd_vel` and stop state.
+Expected values include `CMD,...`, `STOP`, and `ESTOP` depending on the desired speed, steering angle, and behavior state.
 
 Preflight helper:
 
@@ -125,7 +125,8 @@ ros2 topic info /camera/image_1280x720 -v
 ros2 topic info /yolopv2/lane_mask -v
 ros2 topic info /perception/real_world_lane_points -v
 ros2 topic info /traffic_light_state -v
-ros2 topic info /cmd_vel -v
+ros2 topic info /desired_speed -v
+ros2 topic info /desired_steering_angle_deg -v
 ```
 
 Traffic light state

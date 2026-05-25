@@ -6,8 +6,8 @@ Use this checklist before any real MCU or vehicle connection. Keep the vehicle b
 
 - `colcon build` succeeds for `autonomous_bringup`, `yolopv2_ros`, `neuro_decision`, and `vehicle_serial_bridge`.
 - `e2e_mock.launch.py` runs with `mock_serial:=true`.
-- `/cmd_vel` is published and does not jump unexpectedly.
-- `/vehicle/mcu_tx` shows mock `W`, `S`, `A`, `D`, `C`, or Space commands as expected.
+- `/desired_speed` and `/desired_steering_angle_deg` are published and do not jump unexpectedly.
+- `/vehicle/mcu_tx` shows mock `CMD,...`, `STOP`, or `ESTOP` lines as expected.
 - `/behavior_state` transitions are understood, for example `STOP` to `LANE_KEEPING`.
 - `/perception/real_world_lane_points` publishes non-empty `PointCloud2` messages with a non-empty `frame_id`.
 - Run `scripts/e2e_preflight_check.sh` and resolve every `FAIL` before hardware tests.
@@ -38,7 +38,7 @@ Use this checklist before any real MCU or vehicle connection. Keep the vehicle b
    ros2 launch autonomous_bringup e2e_mock.launch.py mock_serial:=true
    ```
 
-2. Confirm `/vehicle/mcu_tx` shows only expected `W`, `S`, `A`, `D`, `C`, and Space commands.
+2. Confirm `/vehicle/mcu_tx` shows only expected `CMD,...`, `STOP`, and `ESTOP` lines.
 3. Run the hardware-safe launch with the bridge disabled:
 
    ```bash
@@ -55,14 +55,14 @@ Use this checklist before any real MCU or vehicle connection. Keep the vehicle b
      hardware_confirm_text:=I_UNDERSTAND_THIS_CAN_MOVE_THE_VEHICLE
    ```
 
-5. Keep `/cmd_vel` at zero for the first serial connection.
-6. Confirm Space stop behavior before any `W` or `S` command.
+5. Keep `/desired_speed` at zero for the first serial connection.
+6. Confirm `STOP` behavior before any nonzero speed command.
 7. Test steering and drive commands with the wheels lifted or the drive path disconnected.
 
 ## 5. Stop Conditions
 
 - Do not connect real hardware if `/behavior_state` is unstable.
-- Do not connect real hardware if `/cmd_vel` jumps or oscillates unexpectedly.
+- Do not connect real hardware if `/desired_speed` or `/desired_steering_angle_deg` jumps or oscillates unexpectedly.
 - Keep `enable_traffic_light:=false` if `/traffic_light_state` differs from the scene.
 - Do not drive if `/perception/real_world_lane_points` rate is too low for the configured timeout.
 - Stop immediately if `mcu_serial_bridge` reports serial errors.

@@ -69,7 +69,7 @@ def generate_launch_description():
         DeclareLaunchArgument('traffic_light_timeout_s', default_value='2.0', description='traffic light state stale timeout [s]'),
         DeclareLaunchArgument('speed_timeout_s', default_value='1.0', description='vehicle speed stale timeout [s]'),
         DeclareLaunchArgument('detection_timeout_s', default_value='0.7', description='camera detection stale timeout [s]'),
-        DeclareLaunchArgument('enable_cmd_vel_adapter', default_value='true', description='cmd_vel adapter 노드 실행 여부'),
+        DeclareLaunchArgument('enable_cmd_vel_adapter', default_value='false', description='cmd_vel adapter 노드 실행 여부'),
         DeclareLaunchArgument('wheelbase', default_value='0.95', description='차량 휠베이스 [m]'),
         DeclareLaunchArgument('max_steering_angle_deg', default_value='20.0', description='최대 조향각 [deg]'),
         behavior_node,

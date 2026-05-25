@@ -30,7 +30,7 @@ autonomous-driving-platform/
 ## Package Roles
 
 - neuro_decision: planning/control 계열 ROS2 Python 패키지
-- vehicle_serial_bridge: cmd_vel/estop을 MCU serial 단일 문자 명령으로 변환하는 브리지 패키지
+- vehicle_serial_bridge: desired control topics와 estop을 MCU `CMD` line protocol로 변환하는 브리지 패키지
 - yolopv2_ros: perception 계열 ROS2 Python 패키지
 
 ## Build and Run
@@ -43,7 +43,7 @@ source install/setup.bash
 ## End-to-End Bringup Safety
 
 - `src/autonomous_bringup` contains the integrated bringup launch files.
-- Use `ros2 launch autonomous_bringup e2e_mock.launch.py mock_serial:=true` for normal perception -> planning -> `/cmd_vel` -> mock MCU checks.
+- Use `ros2 launch autonomous_bringup e2e_mock.launch.py mock_serial:=true` for normal perception -> planning -> `/desired_speed`/`/desired_steering_angle_deg` -> mock MCU checks.
 - `e2e_hardware_safe.launch.py` is for real MCU preparation only. It defaults to `enable_vehicle_bridge:=false` and `mock_serial:=true`.
 - Real serial requires the explicit confirmation arguments documented in `src/autonomous_bringup/README.md`.
 - Before connecting hardware, run `scripts/e2e_preflight_check.sh` and follow `docs/hardware_preflight_checklist.md`.

@@ -7,11 +7,9 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('input_mode', default_value='numeric_direct'),
         DeclareLaunchArgument('port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('baudrate', default_value='115200'),
         DeclareLaunchArgument('mock_serial', default_value='false'),
-        DeclareLaunchArgument('watchdog_timeout', default_value='0.5'),
         DeclareLaunchArgument('serial_timeout', default_value='0.01'),
         DeclareLaunchArgument('write_timeout', default_value='0.01'),
         DeclareLaunchArgument('command_publish_period_s', default_value='0.05'),
@@ -20,25 +18,19 @@ def generate_launch_description():
         DeclareLaunchArgument('behavior_state_topic', default_value='/behavior_state'),
         DeclareLaunchArgument('max_abs_speed_mps', default_value='1.40'),
         DeclareLaunchArgument('max_abs_steering_deg', default_value='20.0'),
-        DeclareLaunchArgument('allow_reverse', default_value='false'),
+        DeclareLaunchArgument('allow_reverse', default_value='true'),
         DeclareLaunchArgument('speed_input_timeout_s', default_value='0.5'),
         DeclareLaunchArgument('steering_input_timeout_s', default_value='0.5'),
         DeclareLaunchArgument('state_input_timeout_s', default_value='0.5'),
-        DeclareLaunchArgument('cmd_topic', default_value='/cmd_vel'),
-        DeclareLaunchArgument('linear_deadband', default_value='0.05'),
-        DeclareLaunchArgument('angular_deadband', default_value='0.05'),
-        DeclareLaunchArgument('send_center_command', default_value='true'),
         Node(
             package='vehicle_serial_bridge',
             executable='mcu_serial_bridge',
             name='mcu_serial_bridge',
             output='screen',
             parameters=[{
-                'input_mode': LaunchConfiguration('input_mode'),
                 'port': LaunchConfiguration('port'),
                 'baudrate': ParameterValue(LaunchConfiguration('baudrate'), value_type=int),
                 'mock_serial': ParameterValue(LaunchConfiguration('mock_serial'), value_type=bool),
-                'watchdog_timeout': ParameterValue(LaunchConfiguration('watchdog_timeout'), value_type=float),
                 'serial_timeout': ParameterValue(LaunchConfiguration('serial_timeout'), value_type=float),
                 'write_timeout': ParameterValue(LaunchConfiguration('write_timeout'), value_type=float),
                 'command_publish_period_s': ParameterValue(
@@ -66,10 +58,6 @@ def generate_launch_description():
                     LaunchConfiguration('state_input_timeout_s'),
                     value_type=float,
                 ),
-                'cmd_topic': LaunchConfiguration('cmd_topic'),
-                'linear_deadband': ParameterValue(LaunchConfiguration('linear_deadband'), value_type=float),
-                'angular_deadband': ParameterValue(LaunchConfiguration('angular_deadband'), value_type=float),
-                'send_center_command': ParameterValue(LaunchConfiguration('send_center_command'), value_type=bool),
             }],
         ),
     ])

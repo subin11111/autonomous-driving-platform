@@ -18,7 +18,7 @@ setup(
     zip_safe=True,
     maintainer='subin',
     maintainer_email='ju27586@konkuk.ac.kr',
-    description='ROS2 serial bridge for single-character MCU vehicle control',
+    description='ROS2 serial bridge for MCU CMD line vehicle control',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={

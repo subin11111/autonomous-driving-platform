@@ -2,20 +2,13 @@
 
 자율주행 유아용 전동차를 위한 **판단(Decision) 및 조향(Steering) 모듈**입니다.
 
-## cmd_vel 어댑터 및 MCU 브리지 연결
+## MCU 브리지 연결
 
 - `neuro_decision`은 MCU를 직접 제어하지 않습니다.
-- `behavior_node`, `steering_command_node` 출력은 `cmd_vel_adapter_node`가 받아 `/cmd_vel`(geometry_msgs/msg/Twist)로 변환합니다.
-- `vehicle_serial_bridge/mcu_serial_bridge`가 `/cmd_vel`을 받아 PySerial로 MCU 단일 문자 명령(`W/S/A/D/C/Space`)을 송신합니다.
-
-현재 MCU 제어는 이산 제어입니다.
-
-- `linear.x > 0` -> `W`
-- `linear.x < 0` -> `S`
-- `linear.x == 0` -> `Space`
-- `angular.z > 0` -> `A`
-- `angular.z < 0` -> `D`
-- `angular.z == 0` -> `C`
+- `behavior_node`는 `/desired_speed`, `/behavior_state`, `/target_point`를 발행합니다.
+- `steering_command_node`는 `/desired_steering_angle_deg`를 발행합니다.
+- `vehicle_serial_bridge/mcu_serial_bridge`가 위 토픽을 받아 PySerial로 MCU `CMD,<speed_mps>,<steering_deg>,<behavior_state>` 라인을 송신합니다.
+- `cmd_vel_adapter_node`는 과거 호환/시각화용으로 남아 있으며, 현재 MCU 브리지는 `/cmd_vel`을 사용하지 않습니다.
 
 | 노드 | 기능 | 입력 | 출력 |
 |------|------|------|------|
