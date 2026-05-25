@@ -36,7 +36,7 @@ class CmdVelAdapterNode(Node):
         self.declare_parameter('steering_deadband', 0.05)
         self.declare_parameter('linear_cmd_value', 0.2)
         self.declare_parameter('angular_cmd_value', 0.5)
-        self.declare_parameter('max_steering_angle_deg', 30.0)
+        self.declare_parameter('max_steering_angle_deg', 20.0)
         self.declare_parameter('speed_input_timeout_s', 0.5)
         self.declare_parameter('steering_input_timeout_s', 0.5)
         self.declare_parameter(
@@ -54,7 +54,7 @@ class CmdVelAdapterNode(Node):
         self.steering_deadband = abs(_safe_float(self.get_parameter('steering_deadband').value, 0.05))
         self.linear_cmd_value = abs(_safe_float(self.get_parameter('linear_cmd_value').value, 0.2))
         self.angular_cmd_value = abs(_safe_float(self.get_parameter('angular_cmd_value').value, 0.5))
-        self.max_steering_angle_deg = abs(_safe_float(self.get_parameter('max_steering_angle_deg').value, 30.0))
+        self.max_steering_angle_deg = abs(_safe_float(self.get_parameter('max_steering_angle_deg').value, 20.0))
         self.speed_input_timeout_s = max(0.0, _safe_float(self.get_parameter('speed_input_timeout_s').value, 0.5))
         self.steering_input_timeout_s = max(0.0, _safe_float(self.get_parameter('steering_input_timeout_s').value, 0.5))
         self.stop_states = {
