@@ -92,7 +92,7 @@ class McuSerialBridge(Node):
         self.declare_parameter('behavior_state_topic', '/behavior_state')
         self.declare_parameter('max_abs_speed_mps', 1.40)
         self.declare_parameter('max_abs_steering_deg', 20.0)
-        self.declare_parameter('allow_reverse', False)
+        self.declare_parameter('allow_reverse', True)
         self.declare_parameter(
             'stop_states',
             ['STOP', 'EMERGENCY_STOP', 'ESTOP', 'RED_LIGHT', 'OBSTACLE_STOP'],
